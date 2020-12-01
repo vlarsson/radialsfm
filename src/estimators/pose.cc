@@ -83,17 +83,16 @@ bool EstimateRadialAbsolutePose(const AbsolutePoseEstimationOptions& options,
                                 Eigen::Vector4d* qvec, Eigen::Vector3d* tvec,
                                 Camera* camera, size_t* num_inliers,
                                 std::vector<char>* inlier_mask) {
-
   CHECK_EQ(camera->ModelId(), Radial1DCameraModel::model_id);
 
   // Subtract principal point
   std::vector<Eigen::Vector2d> points2D_N(points2D.size());
   for (size_t i = 0; i < points2D.size(); ++i) {
     points2D_N[i] = camera->ImageToWorld(points2D[i]);
-  }   
+  }
 
   LORANSAC<RadialP5PEstimator, RadialP5PEstimator, MEstimatorSupportMeasurer>
-      ransac(options.ransac_options);      
+      ransac(options.ransac_options);
   auto report = ransac.Estimate(points2D_N, points3D);
 
   if (!report.success) {
@@ -294,6 +293,13 @@ bool RefineAbsolutePose(const AbsolutePoseRefinementOptions& options,
     ceres::LocalParameterization* quaternion_parameterization =
         new ceres::QuaternionParameterization;
     problem.SetParameterization(qvec_data, quaternion_parameterization);
+
+    if (camera->ModelId() == Radial1DCameraModel::model_id) {
+      // Only optimize over the first two elements of the translation vector for
+      // radial cameras
+      problem.SetParameterization(tvec_data,
+                                  new ceres::SubsetParameterization(3, {2}));
+    }
 
     // Camera parameterization.
     if (!options.refine_focal_length && !options.refine_extra_params) {

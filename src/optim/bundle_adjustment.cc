@@ -418,11 +418,21 @@ void BundleAdjuster::AddImageToProblem(const image_t image_id,
           new ceres::QuaternionParameterization;
       problem_->SetParameterization(qvec_data, quaternion_parameterization);
       if (config_.HasConstantTvec(image_id)) {
-        const std::vector<int>& constant_tvec_idxs =
-            config_.ConstantTvec(image_id);
+        std::vector<int> constant_tvec_idxs = config_.ConstantTvec(image_id);
+
+        if (camera.ModelId() == Radial1DCameraModel::model_id) {
+          // For radial cameras we fix the third parameter of the translation
+          constant_tvec_idxs.push_back(2);
+        }
         ceres::SubsetParameterization* tvec_parameterization =
             new ceres::SubsetParameterization(3, constant_tvec_idxs);
         problem_->SetParameterization(tvec_data, tvec_parameterization);
+      } else {
+        // For radial cameras we fix the third parameter of the translation
+        if (camera.ModelId() == Radial1DCameraModel::model_id) {
+          problem_->SetParameterization(
+              tvec_data, new ceres::SubsetParameterization(3, {2}));
+        }
       }
     }
   }
