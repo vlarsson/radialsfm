@@ -37,6 +37,7 @@
 #include "base/pose.h"
 #include "estimators/absolute_pose.h"
 #include "estimators/essential_matrix.h"
+#include "estimators/radial_absolute_pose.h"
 #include "optim/bundle_adjustment.h"
 #include "util/matrix.h"
 #include "util/misc.h"
@@ -76,6 +77,38 @@ void EstimateAbsolutePoseKernel(const Camera& camera,
 
 }  // namespace
 
+bool EstimateRadialAbsolutePose(const AbsolutePoseEstimationOptions& options,
+                                const std::vector<Eigen::Vector2d>& points2D,
+                                const std::vector<Eigen::Vector3d>& points3D,
+                                Eigen::Vector4d* qvec, Eigen::Vector3d* tvec,
+                                Camera* camera, size_t* num_inliers,
+                                std::vector<char>* inlier_mask) {
+  LORANSAC<RadialP5PEstimator, RadialP5PEstimator, MEstimatorSupportMeasurer>
+      ransac(options.ransac_options);
+  auto report = ransac.Estimate(points2D, points3D);
+
+  if (!report.success) {
+    return false;
+  }
+
+  *num_inliers = report.support.num_inliers;
+  *inlier_mask = report.inlier_mask;
+
+  if (*num_inliers == 0) {
+    return false;
+  }
+
+  // Extract pose parameters.
+  *qvec = RotationMatrixToQuaternion(report.model.leftCols<3>());
+  *tvec = report.model.rightCols<1>();
+
+  if (IsNaN(*qvec) || IsNaN(*tvec)) {
+    return false;
+  }
+
+  return true;
+}
+
 bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           const std::vector<Eigen::Vector2d>& points2D,
                           const std::vector<Eigen::Vector3d>& points3D,
@@ -83,6 +116,11 @@ bool EstimateAbsolutePose(const AbsolutePoseEstimationOptions& options,
                           Camera* camera, size_t* num_inliers,
                           std::vector<char>* inlier_mask) {
   options.Check();
+
+  if (camera->ModelId() == Radial1DCameraModel::model_id) {
+    return EstimateRadialAbsolutePose(options, points2D, points3D, qvec, tvec,
+                                      camera, num_inliers, inlier_mask);
+  }
 
   std::vector<double> focal_length_factors;
   if (options.estimate_focal_length) {

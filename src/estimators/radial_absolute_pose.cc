@@ -271,6 +271,9 @@ std::vector<RadialP5PEstimator::M_t> RadialP5PEstimator::Estimate(
     pose.block<1, 3>(2, 0) =
         pose.block<1, 3>(0, 0).cross(pose.block<1, 3>(1, 0));
 
+    // set t3 = 0
+    pose(2, 3) = 0.0;
+
     // To avoid numerical troubles we project to rotation here. This adds some
     // slight runtime overhead but we might avoid some headaches later.
     Eigen::JacobiSVD<Eigen::Matrix3d> svd(
