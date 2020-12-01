@@ -87,6 +87,19 @@ void ComputeSquaredReprojectionError(
     const std::vector<Eigen::Vector3d>& points3D,
     const Eigen::Matrix3x4d& proj_matrix, std::vector<double>* residuals);
 
+// Calculate the squared radial reprojection error given a set of 2D-3D point
+// correspondences and a projection matrix. Returns DBL_MAX if a 3D point
+// projects to the wrong half-plane
+//
+// @param points2D      2D image points.
+// @param points3D      3D world points.
+// @param proj_matrix   3x4 projection matrix.
+// @param residuals     Output vector of residuals.
+void ComputeSquaredRadialReprojectionError(
+    const std::vector<Eigen::Vector2d>& points2D,
+    const std::vector<Eigen::Vector3d>& points3D,
+    const Eigen::Matrix3x4d& proj_matrix, std::vector<double>* residuals);
+
 }  // namespace colmap
 
 #endif  // COLMAP_SRC_ESTIMATORS_UTILS_H_
