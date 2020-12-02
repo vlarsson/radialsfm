@@ -68,6 +68,32 @@ inline Eigen::Vector4f IndexToRGB(const size_t index) {
   return color;
 }
 
+
+void BuildImageModelRadialCamera(const Image& image, const Camera& camera,
+                     const float image_size, const Eigen::Vector4f& line_color,
+                     std::vector<LinePainter::Data>* line_data) {
+
+  Eigen::Vector3f r3 = image.RotationMatrix().row(2).cast<float>();
+
+  Eigen::Vector3f c0 = image.ProjectionCenter().cast<float>();
+  
+  //c0 = c0 - r3.dot(c0) * r3;
+
+  Eigen::Vector3f p1, p2;
+
+  p1 = c0 + r3 * image_size;
+  p2 = c0 - r3 * image_size;
+
+  LinePainter::Data principal_axis;
+  principal_axis.point1 = PointPainter::Data(p1(0),p1(1),p1(2), line_color(0), line_color(1), line_color(2), line_color(3));
+  principal_axis.point2 = PointPainter::Data(p2(0),p2(1),p2(2), line_color(0), line_color(1), line_color(2), line_color(3));
+
+  if(line_data != nullptr) {
+    line_data->push_back(principal_axis);
+  }
+
+}
+
 void BuildImageModel(const Image& image, const Camera& camera,
                      const float image_size, const Eigen::Vector4f& plane_color,
                      const Eigen::Vector4f& frame_color,
@@ -883,10 +909,16 @@ void ModelViewerWidget::UploadImageData(const bool selection_mode) {
       }
     }
 
-    // Lines are not colored with the indexed color in selection mode, so do not
-    // show them, so they do not block the selection process
-    BuildImageModel(image, camera, image_size_, plane_color, frame_color,
-                    &triangle_data, selection_mode ? nullptr : &line_data);
+    if(camera.ModelId() == Radial1DCameraModel::model_id) {      
+      if(image_size_ > kInitImageSize) {
+        BuildImageModelRadialCamera(image, camera, image_size_, plane_color, &line_data);
+      }      
+    } else {
+      // Lines are not colored with the indexed color in selection mode, so do not
+      // show them, so they do not block the selection process
+      BuildImageModel(image, camera, image_size_, plane_color, frame_color,
+                      &triangle_data, selection_mode ? nullptr : &line_data);
+    }
   }
 
   image_line_painter_.Upload(line_data);
