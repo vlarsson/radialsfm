@@ -127,18 +127,6 @@ double CalculateAngularError(const Eigen::Vector2d& point2D,
                              const Eigen::Matrix3x4d& proj_matrix,
                              const Camera& camera);
 
-// Calculate angulate error using normalized image points.
-//
-// The angular error is the angle between the observed viewing ray and the
-// actual viewing ray from the camera center to the 3D point.
-double CalculateNormalizedAngularError(const Eigen::Vector2d& point2D,
-                                       const Eigen::Vector3d& point3D,
-                                       const Eigen::Vector4d& qvec,
-                                       const Eigen::Vector3d& tvec);
-double CalculateNormalizedAngularError(const Eigen::Vector2d& point2D,
-                                       const Eigen::Vector3d& point3D,
-                                       const Eigen::Matrix3x4d& proj_matrix);
-
 // Calculate depth of 3D point with respect to camera.
 //
 // The depth is defined as the Euclidean distance of a 3D point from the
