@@ -33,6 +33,7 @@
 
 #include "ui/model_viewer_widget.h"
 #include "util/misc.h"
+#include "base/camera_models.h"
 
 namespace colmap {
 
@@ -179,8 +180,15 @@ void PointViewerWidget::Show(const point3D_t point3D_id) {
     const Image& image = model_viewer_widget_->images[track_el.first.image_id];
     const Camera& camera = model_viewer_widget_->cameras[image.CameraId()];
     const Point2D& point2D = image.Point2D(track_el.first.point2D_idx);
-    const Eigen::Vector2d proj_point2D =
-        ProjectPointToImage(point3D.XYZ(), image.ProjectionMatrix(), camera);
+
+    Eigen::Vector2d proj_point2D;   
+    if(camera.ModelId() == Radial1DCameraModel::model_id) {
+      Eigen::Vector2d n = (image.ProjectionMatrix().topRows(2) * point3D.XYZ().homogeneous()).normalized();            
+      Eigen::Vector2d p_center = camera.ImageToWorld(point2D.XY());      
+      proj_point2D = camera.WorldToImage(n.dot(p_center) * n);      
+    } else {
+      proj_point2D = ProjectPointToImage(point3D.XYZ(), image.ProjectionMatrix(), camera);
+    }
     const double reproj_error = (point2D.XY() - proj_point2D).norm();
 
     Bitmap bitmap;
@@ -198,7 +206,7 @@ void PointViewerWidget::Show(const point3D_t point3D_id) {
 
     QPen pen;
     pen.setWidth(3);
-    pen.setColor(Qt::green);
+    pen.setColor(Qt::red);
     painter.setPen(pen);
 
     const int kCrossSize = 15;
@@ -209,14 +217,27 @@ void PointViewerWidget::Show(const point3D_t point3D_id) {
     painter.drawLine(x - kCrossSize, y + kCrossSize, x + kCrossSize,
                      y - kCrossSize);
 
-    pen.setColor(Qt::red);
+    pen.setColor(Qt::blue);
     painter.setPen(pen);
 
-    const int proj_x = static_cast<int>(std::round(proj_point2D.x()));
-    const int proj_y = static_cast<int>(std::round(proj_point2D.y()));
-    painter.drawEllipse(proj_x - 5, proj_y - 5, 10, 10);
-    painter.drawEllipse(proj_x - 15, proj_y - 15, 30, 30);
-    painter.drawEllipse(proj_x - 45, proj_y - 45, 90, 90);
+    if(camera.ModelId() == Radial1DCameraModel::model_id) {
+      const Eigen::Vector2d n = (image.ProjectionMatrix().topRows(2) * point3D.XYZ().homogeneous()).normalized();      
+      const int pp_x = static_cast<int>(std::round(camera.PrincipalPointX()));
+      const int pp_y = static_cast<int>(std::round(camera.PrincipalPointY()));      
+          
+      static const int line_length = std::max(camera.Height(), camera.Width());
+
+      const int nx = static_cast<int>(std::round(line_length * n(0)));
+      const int ny = static_cast<int>(std::round(line_length * n(1)));      
+
+      painter.drawLine(pp_x - nx, pp_y - ny, pp_x + nx, pp_y + ny);
+    } else {      
+      const int proj_x = static_cast<int>(std::round(proj_point2D.x()));
+      const int proj_y = static_cast<int>(std::round(proj_point2D.y()));
+      painter.drawEllipse(proj_x - 5, proj_y - 5, 10, 10);
+      painter.drawEllipse(proj_x - 15, proj_y - 15, 30, 30);
+      painter.drawEllipse(proj_x - 45, proj_y - 45, 90, 90);
+    }
 
     location_pixmaps_.push_back(pixmap);
     image_ids_.push_back(track_el.first.image_id);

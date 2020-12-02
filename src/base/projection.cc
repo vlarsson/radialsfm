@@ -32,7 +32,9 @@
 #include "base/projection.h"
 
 #include "base/pose.h"
+#include "base/camera_models.h"
 #include "util/matrix.h"
+
 
 namespace colmap {
 
@@ -104,6 +106,7 @@ bool DecomposeProjectionMatrix(const Eigen::Matrix3x4d& P, Eigen::Matrix3d* K,
 Eigen::Vector2d ProjectPointToImage(const Eigen::Vector3d& point3D,
                                     const Eigen::Matrix3x4d& proj_matrix,
                                     const Camera& camera) {
+  CHECK(camera.ModelId() != Radial1DCameraModel::model_id);
   const Eigen::Vector3d world_point = proj_matrix * point3D.homogeneous();
   return camera.WorldToImage(world_point.hnormalized());
 }
