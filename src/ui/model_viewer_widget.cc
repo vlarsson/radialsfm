@@ -494,6 +494,7 @@ void ModelViewerWidget::SelectObject(const int x, const int y) {
   // Render in selection mode, with larger points to improve selection accuracy.
   const QMatrix4x4 pmv_matrix = projection_matrix_ * model_view_matrix_;
   image_triangle_painter_.Render(pmv_matrix);
+  image_line_painter_.Render(pmv_matrix, width(), height(), 1);
   point_painter_.Render(pmv_matrix, 2 * point_size_);
 
   const int scaled_x = devicePixelRatio() * x;
@@ -868,6 +869,10 @@ void ModelViewerWidget::UploadPointConnectionData() {
   // All images in which 3D point is observed.
   for (const auto& track_el : point3D.Track().Elements()) {
     const Image& conn_image = images[track_el.image_id];
+    const Camera& conn_camera = cameras[conn_image.CameraId()];
+    if(conn_camera.ModelId() == Radial1DCameraModel::model_id) {
+      continue;
+    }
     const Eigen::Vector3f conn_proj_center =
         conn_image.ProjectionCenter().cast<float>();
     line.point2 = PointPainter::Data(
@@ -911,7 +916,7 @@ void ModelViewerWidget::UploadImageData(const bool selection_mode) {
 
     if(camera.ModelId() == Radial1DCameraModel::model_id) {      
       if(image_size_ > kInitImageSize) {
-        BuildImageModelRadialCamera(image, camera, image_size_, plane_color, &line_data);
+        BuildImageModelRadialCamera(image, camera, image_size_, frame_color, &line_data);
       }      
     } else {
       // Lines are not colored with the indexed color in selection mode, so do not
