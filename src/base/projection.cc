@@ -184,33 +184,23 @@ double CalculateAngularError(const Eigen::Vector2d& point2D,
                              const Eigen::Vector4d& qvec,
                              const Eigen::Vector3d& tvec,
                              const Camera& camera) {
-  return CalculateNormalizedAngularError(camera.ImageToWorld(point2D), point3D,
-                                         qvec, tvec);
+  Eigen::Matrix3x4d proj_matrix;
+  proj_matrix << QuaternionToRotationMatrix(qvec), tvec;
+  return CalculateAngularError(point2D, point3D, proj_matrix, camera);
 }
 
 double CalculateAngularError(const Eigen::Vector2d& point2D,
                              const Eigen::Vector3d& point3D,
                              const Eigen::Matrix3x4d& proj_matrix,
                              const Camera& camera) {
-  return CalculateNormalizedAngularError(camera.ImageToWorld(point2D), point3D,
-                                         proj_matrix);
-}
+  const Eigen::Vector2d point2D_norm = camera.ImageToWorld(point2D);
+  const Eigen::Vector3d point3D_cam = proj_matrix * point3D.homogeneous();
 
-double CalculateNormalizedAngularError(const Eigen::Vector2d& point2D,
-                                       const Eigen::Vector3d& point3D,
-                                       const Eigen::Vector4d& qvec,
-                                       const Eigen::Vector3d& tvec) {
-  const Eigen::Vector3d ray1 = point2D.homogeneous();
-  const Eigen::Vector3d ray2 = QuaternionRotatePoint(qvec, point3D) + tvec;
-  return std::acos(ray1.normalized().transpose() * ray2.normalized());
-}
-
-double CalculateNormalizedAngularError(const Eigen::Vector2d& point2D,
-                                       const Eigen::Vector3d& point3D,
-                                       const Eigen::Matrix3x4d& proj_matrix) {
-  const Eigen::Vector3d ray1 = point2D.homogeneous();
-  const Eigen::Vector3d ray2 = proj_matrix * point3D.homogeneous();
-  return std::acos(ray1.normalized().transpose() * ray2.normalized());
+  if(camera.ModelId() == Radial1DCameraModel::model_id) {    
+    return std::acos(point2D_norm.normalized().dot(point3D_cam.topRows<2>().normalized()));
+  } else {
+    return std::acos(point2D_norm.homogeneous().normalized().dot(point3D_cam.normalized()));
+  }
 }
 
 double CalculateDepth(const Eigen::Matrix3x4d& proj_matrix,
