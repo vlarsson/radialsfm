@@ -714,15 +714,31 @@ size_t Reconstruction::FilterObservationsWithNegativeDepth() {
   size_t num_filtered = 0;
   for (const auto image_id : reg_image_ids_) {
     const class Image& image = Image(image_id);
+    const class Camera& camera = Camera(image.CameraId());
+
     const Eigen::Matrix3x4d proj_matrix = image.ProjectionMatrix();
     for (point2D_t point2D_idx = 0; point2D_idx < image.NumPoints2D();
          ++point2D_idx) {
       const Point2D& point2D = image.Point2D(point2D_idx);
       if (point2D.HasPoint3D()) {
         const class Point3D& point3D = Point3D(point2D.Point3DId());
-        if (!HasPointPositiveDepth(proj_matrix, point3D.XYZ())) {
-          DeleteObservation(image_id, point2D_idx);
-          num_filtered += 1;
+
+
+        if(camera.ModelId() == Radial1DCameraModel::model_id) {
+          // For radial cameras we instead check the half-plane constraint
+          const Eigen::Vector2d n = proj_matrix.topRows<2>() * point3D.XYZ().homogeneous();
+          
+          const double dot_product = n.dot(camera.ImageToWorld(point2D.XY()));
+          if(dot_product < 0) {
+            DeleteObservation(image_id, point2D_idx);
+            num_filtered += 1;
+          } 
+        } else {
+
+          if (!HasPointPositiveDepth(proj_matrix, point3D.XYZ())) {
+            DeleteObservation(image_id, point2D_idx);
+            num_filtered += 1;
+          }
         }
       }
     }
@@ -1357,7 +1373,18 @@ size_t Reconstruction::FilterPoints3DWithLargeReprojectionError(
 
     class Point3D& point3D = Point3D(point3D_id);
 
-    if (point3D.Track().Length() < 2) {
+    int num_constraints = 0;
+    for (const auto& track_el : point3D.Track().Elements()) {
+      const class Image &image = Image(track_el.image_id);
+      const class Camera &camera = Camera(image.CameraId());      
+      if(camera.ModelId() == Radial1DCameraModel::model_id) { 
+        num_constraints += 1;
+      } else {
+        num_constraints += 2;
+      }        
+    }
+    // Remove underconstrained points
+    if (num_constraints < 4) {
       DeletePoint3D(point3D_id);
       num_filtered += point3D.Track().Length();
       continue;
@@ -1375,12 +1402,14 @@ size_t Reconstruction::FilterPoints3DWithLargeReprojectionError(
           point2D.XY(), point3D.XYZ(), image.Qvec(), image.Tvec(), camera);
       if (squared_reproj_error > max_squared_reproj_error) {
         track_els_to_delete.push_back(track_el);
+
+        num_constraints -= (camera.ModelId() == Radial1DCameraModel::model_id) ? 1 : 2;
       } else {
         reproj_error_sum += std::sqrt(squared_reproj_error);
       }
     }
 
-    if (track_els_to_delete.size() >= point3D.Track().Length() - 1) {
+    if (num_constraints < 4) {    
       num_filtered += point3D.Track().Length();
       DeletePoint3D(point3D_id);
     } else {

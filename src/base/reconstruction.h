@@ -231,6 +231,7 @@ class Reconstruction {
                            const double min_tri_angle);
 
   // Filter observations that have negative depth.
+  // For radial cameras this checks the half-plane constraint instead.
   //
   // @return    The number of filtered observations.
   size_t FilterObservationsWithNegativeDepth();

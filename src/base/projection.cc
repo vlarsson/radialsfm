@@ -115,17 +115,29 @@ double CalculateSquaredReprojectionError(const Eigen::Vector2d& point2D,
                                          const Eigen::Vector3d& point3D,
                                          const Eigen::Vector4d& qvec,
                                          const Eigen::Vector3d& tvec,
-                                         const Camera& camera) {
+                                         const Camera& camera) {                                         
   const Eigen::Vector3d proj_point3D =
       QuaternionRotatePoint(qvec, point3D) + tvec;
+  
+  Eigen::Vector2d proj_point2D;
+  
+  if(camera.ModelId() == Radial1DCameraModel::model_id) {        
+    const Eigen::Vector2d n = proj_point3D.topRows<2>().normalized();
+    const Eigen::Vector2d point2D_center = camera.ImageToWorld(point2D);
+    const double dot_product = n.dot(point2D_center);
 
-  // Check that point is infront of camera.
-  if (proj_point3D.z() < std::numeric_limits<double>::epsilon()) {
-    return std::numeric_limits<double>::max();
+    // check that we project onto the correct half-plane
+    if(dot_product < std::numeric_limits<double>::epsilon()) {
+      return std::numeric_limits<double>::max();
+    }
+    proj_point2D = camera.WorldToImage(dot_product * n);
+  } else {
+    // Check that point is infront of camera.
+    if (proj_point3D.z() < std::numeric_limits<double>::epsilon()) {
+      return std::numeric_limits<double>::max();
+    }
+    proj_point2D = camera.WorldToImage(proj_point3D.hnormalized());
   }
-
-  const Eigen::Vector2d proj_point2D =
-      camera.WorldToImage(proj_point3D.hnormalized());
 
   return (proj_point2D - point2D).squaredNorm();
 }
@@ -133,20 +145,36 @@ double CalculateSquaredReprojectionError(const Eigen::Vector2d& point2D,
 double CalculateSquaredReprojectionError(const Eigen::Vector2d& point2D,
                                          const Eigen::Vector3d& point3D,
                                          const Eigen::Matrix3x4d& proj_matrix,
-                                         const Camera& camera) {
-  const double proj_z = proj_matrix.row(2).dot(point3D.homogeneous());
+                                         const Camera& camera) {       
 
-  // Check that point is infront of camera.
-  if (proj_z < std::numeric_limits<double>::epsilon()) {
-    return std::numeric_limits<double>::max();
+  Eigen::Vector2d proj_point2D;
+
+  if(camera.ModelId() == Radial1DCameraModel::model_id) {        
+    const Eigen::Vector2d n = (proj_matrix.topRows<2>() * point3D.homogeneous()).normalized();
+    const Eigen::Vector2d point2D_center = camera.ImageToWorld(point2D);
+    const double dot_product = n.dot(point2D_center);
+
+    // check that we project onto the correct half-plane
+    if(dot_product < std::numeric_limits<double>::epsilon()) {
+      return std::numeric_limits<double>::max();
+    }
+    proj_point2D = camera.WorldToImage(dot_product * n);
+
+  } else {
+    const double proj_z = proj_matrix.row(2).dot(point3D.homogeneous());
+
+    // Check that point is infront of camera.
+    if (proj_z < std::numeric_limits<double>::epsilon()) {
+      return std::numeric_limits<double>::max();
+    }
+
+    const double proj_x = proj_matrix.row(0).dot(point3D.homogeneous());
+    const double proj_y = proj_matrix.row(1).dot(point3D.homogeneous());
+    const double inv_proj_z = 1.0 / proj_z;
+
+    proj_point2D = camera.WorldToImage(Eigen::Vector2d(inv_proj_z * proj_x, inv_proj_z * proj_y));
+
   }
-
-  const double proj_x = proj_matrix.row(0).dot(point3D.homogeneous());
-  const double proj_y = proj_matrix.row(1).dot(point3D.homogeneous());
-  const double inv_proj_z = 1.0 / proj_z;
-
-  const Eigen::Vector2d proj_point2D = camera.WorldToImage(
-      Eigen::Vector2d(inv_proj_z * proj_x, inv_proj_z * proj_y));
 
   return (proj_point2D - point2D).squaredNorm();
 }
