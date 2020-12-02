@@ -119,7 +119,7 @@ class BundleAdjustmentCostFunction<Radial1DCameraModel> {
     // Compute radial reprojection error
     T dot_product = projection[0] * x_c + projection[1] * y_c;
     T alpha = dot_product /
-              (projection[0] + projection[0] + projection[1] * projection[1]);
+              (projection[0] * projection[0] + projection[1] * projection[1]);
 
     // Re-projection error.
     residuals[0] = alpha * projection[0] - x_c;
@@ -247,7 +247,7 @@ class BundleAdjustmentConstantPoseCostFunction<Radial1DCameraModel> {
     // Compute radial reprojection error
     T dot_product = projection[0] * x_c + projection[1] * y_c;
     T alpha = dot_product /
-              (projection[0] + projection[0] + projection[1] * projection[1]);
+              (projection[0] * projection[0] + projection[1] * projection[1]);
 
     // Re-projection error.
     residuals[0] = alpha * projection[0] - x_c;

@@ -518,7 +518,9 @@ void BundleAdjuster::ParameterizeCameras(Reconstruction* reconstruction) {
                                    params_idxs.begin(), params_idxs.end());
       }
 
-      if (const_camera_params.size() > 0) {
+      if (const_camera_params.size() == camera.NumParams()) {
+        problem_->SetParameterBlockConstant(camera.ParamsData());
+      } else if (const_camera_params.size() > 0) {
         ceres::SubsetParameterization* camera_params_parameterization =
             new ceres::SubsetParameterization(
                 static_cast<int>(camera.NumParams()), const_camera_params);
