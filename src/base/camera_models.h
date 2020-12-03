@@ -358,7 +358,7 @@ struct ThinPrismFisheyeCameraModel
 //
 struct Radial1DCameraModel
     : public BaseCameraModel<Radial1DCameraModel> {
-  CAMERA_MODEL_DEFINITIONS(11, "RADIAL_1D", 2)
+  CAMERA_MODEL_DEFINITIONS(11, "1D_RADIAL", 2)
 };
 
 // Check whether camera model with given name or identifier exists.
