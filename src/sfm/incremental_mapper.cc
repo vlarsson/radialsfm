@@ -1157,6 +1157,11 @@ bool IncrementalMapper::EstimateInitialTwoViewGeometry(
   const Image& image2 = database_cache_->Image(image_id2);
   const Camera& camera2 = database_cache_->Camera(image2.CameraId());
 
+  if(camera1.ModelId() == Radial1DCameraModel::model_id || 
+      camera2.ModelId() == Radial1DCameraModel::model_id) {
+    return false; // two-view estimation not possible with radial cameras
+  }
+
   const CorrespondenceGraph& correspondence_graph =
       database_cache_->CorrespondenceGraph();
   const FeatureMatches matches =
