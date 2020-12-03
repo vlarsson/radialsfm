@@ -93,9 +93,10 @@ class TriangulationEstimator {
   void SetResidualType(const ResidualType residual_type);
 
   // The minimum number of samples needed to estimate a model.
-  static const int kMinNumSamples = 2;
+  static const int kMinNumSamples = 3;
 
-  // Estimate a 3D point from a two-view observation.
+  // Estimate a 3D point from a two-view observation
+  // If there are any 1D radial cameras involved, three cameras are used.
   //
   // @param point_data        Image measurement.
   // @param point_data        Camera poses.

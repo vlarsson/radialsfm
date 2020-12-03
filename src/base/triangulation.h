@@ -77,6 +77,17 @@ Eigen::Vector3d TriangulateMultiViewPoint(
     const std::vector<Eigen::Matrix3x4d>& proj_matrices,
     const std::vector<Eigen::Vector2d>& points);
 
+// Triangulate point from multiple views minimizing the L2 error from 2D lines
+// (2D line to 3D point constraints)
+//
+// @param proj_matrices       Projection matrices of multi-view observations.
+// @param lines               Image observations of multi-view observations.
+//
+// @return                    Estimated 3D point.
+Eigen::Vector3d TriangulateMultiViewPointFromLines(
+    const std::vector<Eigen::Matrix3x4d>& proj_matrices,
+    const std::vector<Eigen::Vector3d>& lines);
+
 // Triangulate optimal 3D point from corresponding image point observations by
 // finding the optimal image observations.
 //

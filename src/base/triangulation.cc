@@ -88,6 +88,25 @@ Eigen::Vector3d TriangulateMultiViewPoint(
   return eigen_solver.eigenvectors().col(0).hnormalized();
 }
 
+
+Eigen::Vector3d TriangulateMultiViewPointFromLines(
+    const std::vector<Eigen::Matrix3x4d>& proj_matrices,
+    const std::vector<Eigen::Vector3d>& lines) {
+  CHECK_EQ(proj_matrices.size(), lines.size());
+
+  Eigen::Matrix4d A = Eigen::Matrix4d::Zero();
+
+  for (size_t i = 0; i < lines.size(); i++) {
+    Eigen::Vector4d plane = proj_matrices[i].transpose() * lines[i];
+    plane = plane / plane.topRows<3>().norm();    
+    A += plane * plane.transpose();
+  }
+
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix4d> eigen_solver(A);
+
+  return eigen_solver.eigenvectors().col(0).hnormalized();
+}
+
 Eigen::Vector3d TriangulateOptimalPoint(const Eigen::Matrix3x4d& proj_matrix1,
                                         const Eigen::Matrix3x4d& proj_matrix2,
                                         const Eigen::Vector2d& point1,

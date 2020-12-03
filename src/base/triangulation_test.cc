@@ -31,6 +31,7 @@
 
 #define TEST_NAME "base/triangulation"
 #include "util/testing.h"
+#include "util/random.h"
 
 #include <Eigen/Core>
 
@@ -74,6 +75,38 @@ BOOST_AUTO_TEST_CASE(TestTriangulatePoint) {
         BOOST_CHECK((point3D - tri_point3D).norm() < 1e-10);
       }
     }
+  }
+}
+
+BOOST_AUTO_TEST_CASE(TestTriangulatePointFromLines) {
+  SetPRNGSeed(0);
+  for (int trials = 0; trials < 10; ++trials) {
+    
+    Eigen::Vector3d X_gt;
+    X_gt.setRandom();
+
+    std::vector<Eigen::Matrix3x4d> proj_matrices(3);
+    std::vector<Eigen::Vector3d> lines2D(3);
+
+    for(int i = 0; i < 3; ++i) {
+      proj_matrices[i].block<3,3>(0,0) = Eigen::Quaterniond::UnitRandom().toRotationMatrix();
+      proj_matrices[i].col(3).setRandom();
+                
+      if(proj_matrices[i].row(2).dot(X_gt.homogeneous()) < 0) {
+        // flip camera to ensure cheirality
+        proj_matrices[i].row(0) *= -1.0;
+        proj_matrices[i].row(2) *= -1.0;
+      }
+
+      Eigen::Vector2d x = (proj_matrices[i] * X_gt.homogeneous()).hnormalized();
+      lines2D[i] << x(1), -x(0), 0.0;
+    }
+    
+    const Eigen::Vector3d tri_point3D = TriangulateMultiViewPointFromLines(
+            proj_matrices, lines2D);
+
+    BOOST_CHECK((X_gt - tri_point3D).norm() < 1e-10);
+
   }
 }
 

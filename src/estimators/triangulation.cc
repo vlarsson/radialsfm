@@ -35,6 +35,7 @@
 
 #include "base/projection.h"
 #include "base/triangulation.h"
+#include "base/camera_models.h"
 #include "estimators/essential_matrix.h"
 #include "optim/combination_sampler.h"
 #include "optim/loransac.h"
@@ -52,60 +53,120 @@ void TriangulationEstimator::SetResidualType(const ResidualType residual_type) {
   residual_type_ = residual_type;
 }
 
+
+
+
 std::vector<TriangulationEstimator::M_t> TriangulationEstimator::Estimate(
     const std::vector<X_t>& point_data,
     const std::vector<Y_t>& pose_data) const {
   CHECK_GE(point_data.size(), 2);
   CHECK_EQ(point_data.size(), pose_data.size());
 
-  if (point_data.size() == 2) {
-    // Two-view triangulation.
-
-    const M_t xyz = TriangulatePoint(
-        pose_data[0].proj_matrix, pose_data[1].proj_matrix,
-        point_data[0].point_normalized, point_data[1].point_normalized);
-
-    if (HasPointPositiveDepth(pose_data[0].proj_matrix, xyz) &&
-        HasPointPositiveDepth(pose_data[1].proj_matrix, xyz) &&
-        CalculateTriangulationAngle(pose_data[0].proj_center,
-                                    pose_data[1].proj_center,
-                                    xyz) >= min_tri_angle_) {
-      return std::vector<M_t>{xyz};
-    }
-  } else {
-    // Multi-view triangulation.
-
-    std::vector<Eigen::Matrix3x4d> proj_matrices;
-    proj_matrices.reserve(point_data.size());
-    std::vector<Eigen::Vector2d> points;
-    points.reserve(point_data.size());
-    for (size_t i = 0; i < point_data.size(); ++i) {
-      proj_matrices.push_back(pose_data[i].proj_matrix);
-      points.push_back(point_data[i].point_normalized);
-    }
-
-    const M_t xyz = TriangulateMultiViewPoint(proj_matrices, points);
-
-    // Check for cheirality constraint.
-    for (const auto& pose : pose_data) {
-      if (!HasPointPositiveDepth(pose.proj_matrix, xyz)) {
-        return std::vector<M_t>();
-      }
-    }
-
-    // Check for sufficient triangulation angle.
-    for (size_t i = 0; i < pose_data.size(); ++i) {
-      for (size_t j = 0; j < i; ++j) {
-        const double tri_angle = CalculateTriangulationAngle(
-            pose_data[i].proj_center, pose_data[j].proj_center, xyz);
-        if (tri_angle >= min_tri_angle_) {
-          return std::vector<M_t>{xyz};
-        }
-      }
+  // Check if any of the cameras in this sample is a 1D radial camera
+  bool have_radial = false;
+  for(const auto &p : pose_data) {
+    if(p.camera->ModelId() == Radial1DCameraModel::model_id) {
+      have_radial = true;
+      break;
     }
   }
 
-  return std::vector<M_t>();
+  std::vector<Eigen::Vector3d> candidates;
+  if(!have_radial) { // standard point-based triangulation
+
+    if(point_data.size() == 3) {
+      // This is a minimal sample and not LO-step in RANSAC
+      // We run all possible combinations of three points
+
+      candidates.push_back(TriangulatePoint(
+        pose_data[0].proj_matrix, pose_data[1].proj_matrix,
+        point_data[0].point_normalized, point_data[1].point_normalized));  
+      candidates.push_back(TriangulatePoint(
+        pose_data[0].proj_matrix, pose_data[2].proj_matrix,
+        point_data[0].point_normalized, point_data[2].point_normalized));
+      candidates.push_back(TriangulatePoint(
+        pose_data[1].proj_matrix, pose_data[2].proj_matrix,
+        point_data[1].point_normalized, point_data[2].point_normalized));
+    
+    } else {
+      // This is a non-minimal sample (for refinement in RANSAC)
+      std::vector<Eigen::Matrix3x4d> proj_matrices;
+      proj_matrices.reserve(point_data.size());
+      std::vector<Eigen::Vector2d> points;
+      points.reserve(point_data.size());
+      for (size_t i = 0; i < point_data.size(); ++i) {
+        proj_matrices.push_back(pose_data[i].proj_matrix);
+        points.push_back(point_data[i].point_normalized);
+      }
+      candidates.push_back(TriangulateMultiViewPoint(proj_matrices, points));
+    }
+
+  } else { // triangulation with radial cameras involved
+
+    std::vector<Eigen::Vector3d> lines;
+    std::vector<Eigen::Matrix3x4d> proj_matrices;
+
+    for (size_t i = 0; i < point_data.size(); ++i) {
+      proj_matrices.push_back(pose_data[i].proj_matrix);
+      if(pose_data[i].camera->ModelId() == Radial1DCameraModel::model_id) {
+        // add line corresponding to the radial line
+        lines.emplace_back(point_data[i].point_normalized(1), -point_data[i].point_normalized(0), 0.0);
+      } else {        
+        // add two lines corresponding to x/y coordinates
+        lines.emplace_back(1.0, 0.0, -point_data[i].point_normalized(0));
+        proj_matrices.push_back(pose_data[i].proj_matrix);        
+        lines.emplace_back(0.0, 1.0, -point_data[i].point_normalized(1));
+      }        
+    }
+
+    candidates.push_back(TriangulateMultiViewPointFromLines(proj_matrices, lines));
+
+  }
+
+  std::vector<Eigen::Vector3d> output;
+
+  for(Eigen::Vector3d &xyz : candidates) {
+    // check cheirality for each camera (or half-plane constraint for radial cameras)
+    bool cheiral_ok = true;
+    for (size_t i = 0; i < pose_data.size(); ++i) {
+      if(pose_data[i].camera->ModelId() == Radial1DCameraModel::model_id) {
+        Eigen::Vector2d n = pose_data[i].proj_matrix.topRows<2>() * xyz.homogeneous();
+        cheiral_ok &= n.dot(point_data[i].point_normalized) > 0;
+      } else {
+        cheiral_ok &= HasPointPositiveDepth(pose_data[i].proj_matrix, xyz);
+      }
+    }
+
+    if(!cheiral_ok)
+      continue;
+
+    bool tri_angle_ok = false;
+    // check point-based triangulation angle
+    for (size_t i = 0; i < pose_data.size(); ++i) {
+      if(pose_data[i].camera->ModelId() == Radial1DCameraModel::model_id) {
+        continue;
+      }
+      for (size_t j = 0; j < i; ++j) {
+        if(pose_data[j].camera->ModelId() == Radial1DCameraModel::model_id) {
+          continue;
+        }
+        const double tri_angle = CalculateTriangulationAngle(
+            pose_data[i].proj_center, pose_data[j].proj_center, xyz);
+        tri_angle_ok |= (tri_angle >= min_tri_angle_);
+      }
+    }
+
+    if(!have_radial && !tri_angle_ok) {
+      // we have only pinhole-like cameras and poor triangulatiopn angle
+      continue;
+    }
+
+    // TODO: triangulation angle equivalent for radial cameras
+
+    output.push_back(xyz);
+  }
+
+  return output;
 }
 
 void TriangulationEstimator::Residuals(const std::vector<X_t>& point_data,
@@ -123,7 +184,7 @@ void TriangulationEstimator::Residuals(const std::vector<X_t>& point_data,
           *pose_data[i].camera);
     } else if (residual_type_ == ResidualType::ANGULAR_ERROR) {
       const double angular_error = CalculateAngularError(
-          point_data[i].point_normalized, xyz, pose_data[i].proj_matrix,
+          point_data[i].point, xyz, pose_data[i].proj_matrix,
           *pose_data[i].camera);
       (*residuals)[i] = angular_error * angular_error;
     }
