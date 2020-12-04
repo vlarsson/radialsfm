@@ -308,4 +308,33 @@ void RadialP5PEstimator::Residuals(const std::vector<X_t>& points2D,
                                         residuals);
 }
 
+double EstimateRadialCameraForwardOffset(
+    const Eigen::Matrix3x4d proj_matrix,
+    const std::vector<Eigen::Vector2d> points2D,
+    const std::vector<Eigen::Vector3d> points3D) {
+  // We guesstimate the forward translation by assuming a single focal length
+  Eigen::Matrix2d AtA;
+  Eigen::Vector2d Atb;
+  AtA.setZero();
+  Atb.setZero();
+
+  // rescale image points to improve numerics
+  double scale = 0.0;
+  for (const Eigen::Vector2d& point2D : points2D) {
+    scale += point2D.norm();
+  }
+  scale /= points2D.size();
+
+  for (size_t i = 0; i < points2D.size(); ++i) {
+    const Eigen::Vector2d x = points2D[i] / scale;
+    const Eigen::Vector3d X = proj_matrix * points3D[i].homogeneous();
+    const Eigen::Vector2d a(x.dot(X.topRows<2>()), -x.squaredNorm());
+    AtA += a * a.transpose();
+    Atb += a * x.squaredNorm() * X(2);
+  }
+
+  const Eigen::Vector2d sol = AtA.inverse() * Atb;
+  return sol(1);
+}
+
 }  // namespace colmap

@@ -178,6 +178,11 @@ class Reconstruction {
   void Normalize(const double extent = 10.0, const double p0 = 0.1,
                  const double p1 = 0.9, const bool use_images = true);
 
+  // Estimates a psuedo-camera center for the radial cameras (setting tz)
+  // This is used for normalizing the scale of the reconstruction and
+  // for visualization purposes.
+  void NormalizeRadialCameras();
+
   // Apply the 3D similarity transformation to all images and points.
   void Transform(const SimilarityTransform3& tform);
 

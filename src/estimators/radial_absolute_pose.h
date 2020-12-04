@@ -48,7 +48,6 @@ namespace colmap {
 //
 //   Kukelova et al., Real-Time Solution to the Absolute Pose Problem with
 //                    Unknown Radial Distortion and Focal Length, ICCV 2013
-
 class RadialP5PEstimator {
  public:
   // The 2D image feature observations.
@@ -82,6 +81,13 @@ class RadialP5PEstimator {
                         const M_t& proj_matrix, std::vector<double>* residuals);
 };
 
+// Estimates the foward offset t3 by assuming a single focal length
+// This is only used for normalizing scale of the reconstruction and
+// for visualization purposes.
+double EstimateRadialCameraForwardOffset(
+    const Eigen::Matrix3x4d proj_matrix,
+    const std::vector<Eigen::Vector2d> points2D,
+    const std::vector<Eigen::Vector3d> points3D);
 }  // namespace colmap
 
 #endif  // COLMAP_SRC_ESTIMATORS_RADIAL_ABSOLUTE_POSE_H_

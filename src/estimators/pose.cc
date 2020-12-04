@@ -106,9 +106,26 @@ bool EstimateRadialAbsolutePose(const AbsolutePoseEstimationOptions& options,
     return false;
   }
 
+  // We guesstimate the forward translation as well
+  // Note that this is not used during the reconstruction, but is only
+  // for scale and visualizuation purposes
+  std::vector<Eigen::Vector2d> inlier_points2D;
+  std::vector<Eigen::Vector3d> inlier_points3D;
+  inlier_points2D.reserve(*num_inliers);
+  inlier_points3D.reserve(*num_inliers);
+  for (size_t i = 0; i < inlier_mask->size(); ++i) {
+    if ((*inlier_mask)[i]) {
+      inlier_points2D.push_back(points2D_N[i]);
+      inlier_points3D.push_back(points3D[i]);
+    }
+  }
+  double tz = EstimateRadialCameraForwardOffset(report.model, inlier_points2D,
+                                                inlier_points3D);
+
   // Extract pose parameters.
   *qvec = RotationMatrixToQuaternion(report.model.leftCols<3>());
   *tvec = report.model.rightCols<1>();
+  (*tvec)(2) += tz;
 
   if (IsNaN(*qvec) || IsNaN(*tvec)) {
     return false;

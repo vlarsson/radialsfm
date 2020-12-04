@@ -38,6 +38,7 @@
 #include "base/projection.h"
 #include "base/similarity_transform.h"
 #include "base/triangulation.h"
+#include "estimators/radial_absolute_pose.h"
 #include "estimators/similarity_transform.h"
 #include "optim/loransac.h"
 #include "util/bitmap.h"
@@ -335,6 +336,8 @@ void Reconstruction::Normalize(const double extent, const double p0,
     return;
   }
 
+  NormalizeRadialCameras();
+
   EIGEN_STL_UMAP(class Image*, Eigen::Vector3d) proj_centers;
 
   for (size_t i = 0; i < reg_image_ids_.size(); ++i) {
@@ -415,6 +418,33 @@ void Reconstruction::Normalize(const double extent, const double p0,
   for (auto& point3D : points3D_) {
     point3D.second.XYZ() -= translation;
     point3D.second.XYZ() *= scale;
+  }
+}
+
+void Reconstruction::NormalizeRadialCameras() {
+  for (auto& image : images_) {
+    const class Camera& camera = Camera(image.second.CameraId());
+    if (camera.ModelId() != Radial1DCameraModel::model_id) {
+      continue;
+    }
+
+    std::vector<Eigen::Vector2d> points2D;
+    std::vector<Eigen::Vector3d> points3D;
+    points2D.reserve(image.second.NumPoints3D());
+    points3D.reserve(image.second.NumPoints3D());
+    for (const Point2D& point2D : image.second.Points2D()) {
+      if (point2D.HasPoint3D()) {
+        points2D.push_back(camera.ImageToWorld(point2D.XY()));
+        points3D.push_back(Point3D(point2D.Point3DId()).XYZ());
+      }
+    }
+
+    Eigen::Matrix3x4d proj_matrix = image.second.ProjectionMatrix();
+    double tz =
+        EstimateRadialCameraForwardOffset(proj_matrix, points2D, points3D);
+    Eigen::Vector3d tvec = proj_matrix.col(3);
+    tvec(2) += tz;
+    image.second.SetTvec(tvec);
   }
 }
 
@@ -723,18 +753,17 @@ size_t Reconstruction::FilterObservationsWithNegativeDepth() {
       if (point2D.HasPoint3D()) {
         const class Point3D& point3D = Point3D(point2D.Point3DId());
 
-
-        if(camera.ModelId() == Radial1DCameraModel::model_id) {
+        if (camera.ModelId() == Radial1DCameraModel::model_id) {
           // For radial cameras we instead check the half-plane constraint
-          const Eigen::Vector2d n = proj_matrix.topRows<2>() * point3D.XYZ().homogeneous();
-          
+          const Eigen::Vector2d n =
+              proj_matrix.topRows<2>() * point3D.XYZ().homogeneous();
+
           const double dot_product = n.dot(camera.ImageToWorld(point2D.XY()));
-          if(dot_product < 0) {
+          if (dot_product < 0) {
             DeleteObservation(image_id, point2D_idx);
             num_filtered += 1;
-          } 
+          }
         } else {
-
           if (!HasPointPositiveDepth(proj_matrix, point3D.XYZ())) {
             DeleteObservation(image_id, point2D_idx);
             num_filtered += 1;
@@ -883,8 +912,7 @@ void Reconstruction::ImportPLY(const std::string& path) {
   }
 }
 
-void Reconstruction::ImportPLY(const std::vector<PlyPoint> &ply_points)
-{
+void Reconstruction::ImportPLY(const std::vector<PlyPoint>& ply_points) {
   points3D_.clear();
   points3D_.reserve(ply_points.size());
   for (const auto& ply_point : ply_points) {
@@ -1375,13 +1403,13 @@ size_t Reconstruction::FilterPoints3DWithLargeReprojectionError(
 
     int num_constraints = 0;
     for (const auto& track_el : point3D.Track().Elements()) {
-      const class Image &image = Image(track_el.image_id);
-      const class Camera &camera = Camera(image.CameraId());      
-      if(camera.ModelId() == Radial1DCameraModel::model_id) { 
+      const class Image& image = Image(track_el.image_id);
+      const class Camera& camera = Camera(image.CameraId());
+      if (camera.ModelId() == Radial1DCameraModel::model_id) {
         num_constraints += 1;
       } else {
         num_constraints += 2;
-      }        
+      }
     }
     // Remove underconstrained points
     if (num_constraints < 4) {
@@ -1403,13 +1431,14 @@ size_t Reconstruction::FilterPoints3DWithLargeReprojectionError(
       if (squared_reproj_error > max_squared_reproj_error) {
         track_els_to_delete.push_back(track_el);
 
-        num_constraints -= (camera.ModelId() == Radial1DCameraModel::model_id) ? 1 : 2;
+        num_constraints -=
+            (camera.ModelId() == Radial1DCameraModel::model_id) ? 1 : 2;
       } else {
         reproj_error_sum += std::sqrt(squared_reproj_error);
       }
     }
 
-    if (num_constraints < 4) {    
+    if (num_constraints < 4) {
       num_filtered += point3D.Track().Length();
       DeletePoint3D(point3D_id);
     } else {
