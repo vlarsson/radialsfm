@@ -275,8 +275,7 @@ int RunStereoFuser(int argc, char** argv) {
   options.AddDefaultOption("pmvs_option_name", &pmvs_option_name);
   options.AddDefaultOption("input_type", &input_type,
                            "{photometric, geometric}");
-  options.AddDefaultOption("output_type", &output_type,
-                            "{BIN, TXT, PLY}");
+  options.AddDefaultOption("output_type", &output_type, "{BIN, TXT, PLY}");
   options.AddRequiredOption("output_path", &output_path);
   options.AddStereoFusionOptions();
   options.Parse(argc, argv);
@@ -1790,6 +1789,75 @@ int RunRigBundleAdjuster(int argc, char** argv) {
   return EXIT_SUCCESS;
 }
 
+int RunRadialTrifocalInitializer(int argc, char** argv) {
+  std::string output_path;
+  std::string init_images_str;
+  OptionManager options;
+  options.AddDatabaseOptions();
+  options.AddRequiredOption("output_path", &output_path);
+  options.AddRequiredOption("init_images", &init_images_str);
+  options.Parse(argc, argv);
+
+  PrintHeading1("Loading database");
+  DatabaseCache database_cache;
+  {
+    Timer timer;
+    timer.Start();
+    Database database(*options.database_path);
+    const size_t min_num_matches = 25;
+    database_cache.Load(database, min_num_matches, false, {});
+    std::cout << std::endl;
+    timer.PrintMinutes();
+  }
+  std::cout << std::endl;
+
+  // Try to parse init images as integer indices
+  std::vector<int> init_image_ids = CSVToVector<int>(init_images_str);
+  std::vector<std::string> init_image_names;
+  if (init_image_ids.size() == 0) {
+    // fall back to parsing them as string (names)
+    init_image_names = CSVToVector<std::string>(init_images_str);
+    if (init_image_names.size() != 5) {
+      std::cerr << "ERROR: `init_images` is incorrect format." << std::endl;
+      return EXIT_FAILURE;
+    }
+    for (int i = 0; i < 5; ++i) {
+      const Image* img = database_cache.FindImageWithName(init_image_names[i]);
+      if (img == nullptr) {
+        std::cerr << StringPrintf("ERROR: image `%s` not found in database.\n",
+                                  init_image_names[i].c_str());
+        return EXIT_FAILURE;
+      }
+      init_image_ids.push_back(img->ImageId());
+    }
+  }
+  if (init_image_ids.size() != 5) {
+    std::cerr << "ERROR: `init_images` is incorrect format." << std::endl;
+    return EXIT_FAILURE;
+  }
+  // Check that all images exist in database
+  init_image_names.resize(5);
+  for (int i = 0; i < 5; ++i) {
+    if (!database_cache.ExistsImage(init_image_ids[i])) {
+      std::cerr << StringPrintf("ERROR: image id `%d` not found in database.\n",
+                                init_image_ids[i]);
+      return EXIT_FAILURE;
+    }
+    init_image_names[i] = database_cache.Image(init_image_ids[i]).Name();
+  }
+
+  PrintHeading1("Radial Trifocal Tensor Initializer");
+  std::cout << StringPrintf(
+      "initializing from images: %s, %s, %s, %s, %s\n",
+      init_image_names[0].c_str(), init_image_names[1].c_str(),
+      init_image_names[2].c_str(), init_image_names[3].c_str(),
+      init_image_names[4].c_str());
+
+  // TODO initialize
+
+  return EXIT_SUCCESS;
+}
+
 int RunSpatialMatcher(int argc, char** argv) {
   OptionManager options;
   options.AddDatabaseOptions();
@@ -2168,6 +2236,8 @@ int main(int argc, char** argv) {
   commands.emplace_back("poisson_mesher", &RunPoissonMesher);
   commands.emplace_back("project_generator", &RunProjectGenerator);
   commands.emplace_back("rig_bundle_adjuster", &RunRigBundleAdjuster);
+  commands.emplace_back("radial_trifocal_initializer",
+                        &RunRadialTrifocalInitializer);
   commands.emplace_back("sequential_matcher", &RunSequentialMatcher);
   commands.emplace_back("spatial_matcher", &RunSpatialMatcher);
   commands.emplace_back("stereo_fusion", &RunStereoFuser);
