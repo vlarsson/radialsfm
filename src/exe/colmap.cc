@@ -46,6 +46,7 @@
 #include "feature/utils.h"
 #include "mvs/meshing.h"
 #include "mvs/patch_match.h"
+#include "radial_trifocal_init/initializer.h"
 #include "retrieval/visual_index.h"
 #include "ui/main_window.h"
 #include "util/opengl_utils.h"
@@ -1812,7 +1813,7 @@ int RunRadialTrifocalInitializer(int argc, char** argv) {
   std::cout << std::endl;
 
   // Try to parse init images as integer indices
-  std::vector<int> init_image_ids = CSVToVector<int>(init_images_str);
+  std::vector<image_t> init_image_ids = CSVToVector<image_t>(init_images_str);
   std::vector<std::string> init_image_names;
   if (init_image_ids.size() == 0) {
     // fall back to parsing them as string (names)
@@ -1854,6 +1855,7 @@ int RunRadialTrifocalInitializer(int argc, char** argv) {
       init_image_names[4].c_str());
 
   // TODO initialize
+  init::InitializeRadialReconstruction(database_cache, init_image_ids);
 
   return EXIT_SUCCESS;
 }

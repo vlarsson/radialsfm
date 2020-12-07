@@ -274,4 +274,90 @@ bool FindPolynomialRootsCompanionMatrix(const Eigen::VectorXd& coeffs_all,
   return true;
 }
 
+
+
+// Stolen from PoseLib implementation
+/* Solves the quadratic equation a*x^2 + b*x + c = 0 */
+inline double sign(const double z) { return z < 0 ? -1.0 : 1.0; }
+
+int SolveQuadraticReal(double a, double b, double c, double roots[2]) {
+  double b2m4ac = b * b - 4 * a * c;
+  if (b2m4ac < 0) return 0;
+
+  double sq = std::sqrt(b2m4ac);
+
+  // Choose sign to avoid cancellations
+  roots[0] = (b > 0) ? (2 * c) / (-b - sq) : (2 * c) / (-b + sq);
+  roots[1] = c / (a * roots[0]);
+
+  return 2;
+}
+void SolveCubicRealSingleRoot(double c2, double c1, double c0, double& root) {
+  double a = c1 - c2 * c2 / 3.0;
+  double b = (2.0 * c2 * c2 * c2 - 9.0 * c2 * c1) / 27.0 + c0;
+  double c = b * b / 4.0 + a * a * a / 27.0;
+  if (c > 0) {
+    c = std::sqrt(c);
+    b *= -0.5;
+    root = std::cbrt(b + c) + std::cbrt(b - c) - c2 / 3.0;
+  } else {
+    c = 3.0 * b / (2.0 * a) * std::sqrt(-3.0 / a);
+    root = 2.0 * std::sqrt(-a / 3.0) * std::cos(std::acos(c) / 3.0) - c2 / 3.0;
+  }
+}
+/* Solves the quartic equation x^4 + b*x^3 + c*x^2 + d*x + e = 0 */
+int SolveQuarticReal(double b, double c, double d, double e, double roots[4]) {
+  // Find depressed quartic
+  double p = c - 3.0 * b * b / 8.0;
+  double q = b * b * b / 8.0 - 0.5 * b * c + d;
+  double r =
+      (-3.0 * b * b * b * b + 256.0 * e - 64.0 * b * d + 16.0 * b * b * c) /
+      256.0;
+
+  // Resolvent cubic is now
+  // U^3 + 2*p U^2 + (p^2 - 4*r) * U - q^2
+  double bb = 2.0 * p;
+  double cc = p * p - 4.0 * r;
+  double dd = -q * q;
+
+  // Solve resolvent cubic
+  double u2;
+  SolveCubicRealSingleRoot(bb, cc, dd, u2);
+
+  if (u2 < 0) return 0;
+
+  double u = sqrt(u2);
+
+  double s = -u;
+  double t = (p + u * u + q / u) / 2.0;
+  double v = (p + u * u - q / u) / 2.0;
+
+  int sols = 0;
+  double disc = u * u - 4.0 * v;
+  if (disc > 0) {
+    roots[0] = (-u - sign(u) * std::sqrt(disc)) / 2.0;
+    roots[1] = v / roots[0];
+    sols += 2;
+  }
+  disc = s * s - 4.0 * t;
+  if (disc > 0) {
+    roots[sols] = (-s - sign(s) * std::sqrt(disc)) / 2.0;
+    roots[sols + 1] = t / roots[sols];
+    sols += 2;
+  }
+
+  for (int i = 0; i < sols; i++) {
+    roots[i] = roots[i] - b / 4.0;
+
+    // do one step of newton refinement
+    double x = roots[i];
+    double x2 = x * x;
+    double x3 = x * x2;
+    double dx = -(x2 * x2 + b * x3 + c * x2 + d * x + e) /
+                (4.0 * x3 + 3.0 * b * x2 + 2.0 * c * x + d);
+    roots[i] = x + dx;
+  }
+  return sols;
+}
+
 }  // namespace colmap

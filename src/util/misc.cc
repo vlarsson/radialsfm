@@ -253,6 +253,25 @@ std::vector<int> CSVToVector(const std::string& csv) {
 }
 
 template <>
+std::vector<std::uint32_t> CSVToVector(const std::string& csv) {
+  auto elems = StringSplit(csv, ",;");
+  std::vector<std::uint32_t> values;
+  values.reserve(elems.size());
+  for (auto& elem : elems) {
+    StringTrim(&elem);
+    if (elem.empty()) {
+      continue;
+    }
+    try {
+      values.push_back(std::stoi(elem));
+    } catch (const std::invalid_argument&) {
+      return std::vector<std::uint32_t>(0);
+    }
+  }
+  return values;
+}
+
+template <>
 std::vector<float> CSVToVector(const std::string& csv) {
   auto elems = StringSplit(csv, ",;");
   std::vector<float> values;

@@ -83,6 +83,13 @@ bool FindPolynomialRootsCompanionMatrix(const Eigen::VectorXd& coeffs,
                                         Eigen::VectorXd* real,
                                         Eigen::VectorXd* imag);
 
+
+
+int SolveQuadraticReal(double a, double b, double c, double roots[2]);
+void SolveCubicRealSingleRoot(double c2, double c1, double c0, double& root);
+/* Solves the quartic equation x^4 + b*x^3 + c*x^2 + d*x + e = 0 */
+int SolveQuarticReal(double b, double c, double d, double e, double roots[4]);
+
 ////////////////////////////////////////////////////////////////////////////////
 // Implementation
 ////////////////////////////////////////////////////////////////////////////////

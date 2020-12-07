@@ -349,6 +349,7 @@ COLMAP_ADD_SOURCE_DIR(src/exe EXE_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/feature FEATURE_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/mvs MVS_SRCS *.h *.cc *.cu)
 COLMAP_ADD_SOURCE_DIR(src/optim OPTIM_SRCS *.h *.cc)
+COLMAP_ADD_SOURCE_DIR(src/radial_trifocal_init RADIAL_TRIFOCAL_INIT_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/retrieval RETRIEVAL_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/sfm SFM_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/tools TOOLS_SRCS *.h *.cc)
@@ -375,6 +376,7 @@ add_library(
     ${FEATURE_SRCS}
     ${MVS_SRCS}
     ${OPTIM_SRCS}
+    ${RADIAL_TRIFOCAL_INIT_SRCS}
     ${RETRIEVAL_SRCS}
     ${SFM_SRCS}
     ${TOOLS_SRCS}
