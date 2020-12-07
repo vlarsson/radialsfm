@@ -38,7 +38,7 @@ class RadialTrifocalTensorEstimator {
  public:
   // Triplet correspondences
   struct PointData {
-      Eigen::Vector2d x1, x2, x3;
+    Eigen::Vector2d x1, x2, x3;
   };
   typedef PointData X_t;
 
@@ -68,19 +68,18 @@ class RadialTrifocalTensorEstimator {
   // @param proj_matrix  3x4 projection matrix.
   // @param residuals    Output vector of residuals.
   static void Residuals(const std::vector<X_t>& points2D,
-                        const std::vector<Y_t>& weights,
-                        const M_t& rotations, std::vector<double>* residuals);
+                        const std::vector<Y_t>& weights, const M_t& rotations,
+                        std::vector<double>* residuals);
 };
-
 
 // Estimate radial trifocal tensor (intersecting principal axes)
 // from 2D-2D-2D correspondences
 bool EstimateRadialTrifocalTensor(
-                          const std::vector<Eigen::Vector2d>& points2D_1,
-                          const std::vector<Eigen::Vector2d>& points2D_2,
-                          const std::vector<Eigen::Vector2d>& points2D_3,                          
-                          std::vector<Eigen::Matrix3d> &rotations,
-                          size_t* num_inliers, std::vector<char>* inlier_mask);
+    const std::vector<Eigen::Vector2d>& points2D_1,
+    const std::vector<Eigen::Vector2d>& points2D_2,
+    const std::vector<Eigen::Vector2d>& points2D_3,
+    std::vector<Eigen::Matrix3d>& rotations, size_t* num_inliers,
+    std::vector<char>* inlier_mask);
 
-}
-}
+}  // namespace init
+}  // namespace colmap

@@ -29,23 +29,25 @@
 //
 // Author: Viktor Larsson
 
-#include "util/types.h"
-#include "base/image.h"
 #include "base/database_cache.h"
+#include "base/image.h"
+#include "util/types.h"
 
 namespace colmap {
 namespace init {
 
 // Entry point for initialization
-bool InitializeRadialReconstruction(const DatabaseCache &database_cache, const std::vector<image_t> &image_ids);
+bool InitializeRadialReconstruction(const DatabaseCache& database_cache,
+                                    const std::vector<image_t>& image_ids);
 
 struct FeatureTrack {
-    std::array<Eigen::Vector2d, 5> point2D;
-    std::array<char, 5> obs;
+  std::array<Eigen::Vector2d, 5> point2D;
+  std::array<char, 5> obs;
 };
-std::vector<FeatureTrack> BuildFeatureTracksForInitialization(const DatabaseCache &database_cache, const std::vector<image_t> &image_ids);
-bool InitializeFirstTriplet(const std::vector<FeatureTrack> &tracks, std::vector<Eigen::Matrix3x4d> &poses);
-   
+std::vector<FeatureTrack> BuildFeatureTracksForInitialization(
+    const DatabaseCache& database_cache, const std::vector<image_t>& image_ids);
+bool InitializeFirstTriplet(const std::vector<FeatureTrack>& tracks,
+                            std::vector<Eigen::Matrix3x4d>& poses);
 
-}
-}
+}  // namespace init
+}  // namespace colmap

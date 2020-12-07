@@ -34,13 +34,33 @@
 namespace colmap {
 namespace init {
 
-
-void RadialTensorCoordinateChange(const Eigen::Matrix<double,8,1> &T, const Eigen::Matrix<double,2,2> &A1, const Eigen::Matrix<double,2,2> &A2, const Eigen::Matrix<double,2,2> &A3, Eigen::Matrix<double,8,1> *Tout);
-void MixedTensorCoordinateChange(const Eigen::Matrix<double,12,1> &T, const Eigen::Matrix<double,3,3> &A1, const Eigen::Matrix<double,2,2> &A2, const Eigen::Matrix<double,2,2> &A3, Eigen::Matrix<double,12,1> *Tout);
-int FactorizeRadialTensor(const Eigen::Matrix<double, 8, 1> & T, Eigen::Matrix<double, 2, 3> P1[2], Eigen::Matrix<double, 2, 3> P2[2], Eigen::Matrix<double, 2, 3> P3[2]);
-void FactorizeMixedTensor(const Eigen::Matrix<double, 12, 1> & T, Eigen::Matrix<double, 3, 4> *P1, Eigen::Matrix<double, 2, 4> *P2, Eigen::Matrix<double, 2, 4> *P3);
-bool MetricUpgradeRadial(const Eigen::Matrix<double, 2, 3> &P2, const Eigen::Matrix<double, 2, 3> &P3, Eigen::Matrix<double, 3, 3> *H);
-bool MetricUpgradeMixed(const Eigen::Matrix<double, 2, 4> &P2, const Eigen::Matrix<double, 2, 4> &P3, Eigen::Matrix<double, 4, 4> *H);
-int SolveCalibRadialTrifocalTensor(const Eigen::Matrix<double, 2, 6> &x1,const Eigen::Matrix<double, 2, 6> &x2,const Eigen::Matrix<double, 2, 6> &x3,Eigen::Matrix<double, 8, 4> *sols);
-}
-}
+void RadialTensorCoordinateChange(const Eigen::Matrix<double, 8, 1>& T,
+                                  const Eigen::Matrix<double, 2, 2>& A1,
+                                  const Eigen::Matrix<double, 2, 2>& A2,
+                                  const Eigen::Matrix<double, 2, 2>& A3,
+                                  Eigen::Matrix<double, 8, 1>* Tout);
+void MixedTensorCoordinateChange(const Eigen::Matrix<double, 12, 1>& T,
+                                 const Eigen::Matrix<double, 3, 3>& A1,
+                                 const Eigen::Matrix<double, 2, 2>& A2,
+                                 const Eigen::Matrix<double, 2, 2>& A3,
+                                 Eigen::Matrix<double, 12, 1>* Tout);
+int FactorizeRadialTensor(const Eigen::Matrix<double, 8, 1>& T,
+                          Eigen::Matrix<double, 2, 3> P1[2],
+                          Eigen::Matrix<double, 2, 3> P2[2],
+                          Eigen::Matrix<double, 2, 3> P3[2]);
+void FactorizeMixedTensor(const Eigen::Matrix<double, 12, 1>& T,
+                          Eigen::Matrix<double, 3, 4>* P1,
+                          Eigen::Matrix<double, 2, 4>* P2,
+                          Eigen::Matrix<double, 2, 4>* P3);
+bool MetricUpgradeRadial(const Eigen::Matrix<double, 2, 3>& P2,
+                         const Eigen::Matrix<double, 2, 3>& P3,
+                         Eigen::Matrix<double, 3, 3>* H);
+bool MetricUpgradeMixed(const Eigen::Matrix<double, 2, 4>& P2,
+                        const Eigen::Matrix<double, 2, 4>& P3,
+                        Eigen::Matrix<double, 4, 4>* H);
+int SolveCalibRadialTrifocalTensor(const Eigen::Matrix<double, 2, 6>& x1,
+                                   const Eigen::Matrix<double, 2, 6>& x2,
+                                   const Eigen::Matrix<double, 2, 6>& x3,
+                                   Eigen::Matrix<double, 8, 4>* sols);
+}  // namespace init
+}  // namespace colmap

@@ -30,197 +30,206 @@
 // Author: Viktor Larsson
 
 #include "radial_trifocal_init/estimators.h"
-#include "radial_trifocal_init/tensor.h"
-#include "util/misc.h"
 #include "base/pose.h"
 #include "optim/loransac.h"
+#include "radial_trifocal_init/tensor.h"
+#include "util/misc.h"
 namespace colmap {
 namespace init {
 
-
-
-std::vector<RadialTrifocalTensorEstimator::M_t> RadialTrifocalTensorEstimator::Estimate(
-    const std::vector<X_t>& points2D, const std::vector<Y_t>& weights) {
-
-  Eigen::Matrix<double,2,6> x1, x2, x3;
-  for(int i = 0; i < 6; ++i) {
-      x1.col(i) = points2D[i].x1;
-      x2.col(i) = points2D[i].x2;
-      x3.col(i) = points2D[i].x3;
+std::vector<RadialTrifocalTensorEstimator::M_t>
+RadialTrifocalTensorEstimator::Estimate(const std::vector<X_t>& points2D,
+                                        const std::vector<Y_t>& weights) {
+  Eigen::Matrix<double, 2, 6> x1, x2, x3;
+  for (int i = 0; i < 6; ++i) {
+    x1.col(i) = points2D[i].x1;
+    x2.col(i) = points2D[i].x2;
+    x3.col(i) = points2D[i].x3;
   }
 
   Eigen::Matrix<double, 8, 4> sols;
-  int n_sols = SolveCalibRadialTrifocalTensor(x1,x2,x3,&sols);
+  int n_sols = SolveCalibRadialTrifocalTensor(x1, x2, x3, &sols);
 
   std::vector<M_t> output;
 
-  for(int i = 0; i < n_sols; ++i) {
-      Eigen::Matrix<double, 8, 1> tensor = sols.col(i);
+  for (int i = 0; i < n_sols; ++i) {
+    Eigen::Matrix<double, 8, 1> tensor = sols.col(i);
 
-      Eigen::Matrix<double, 2, 3> P1[2], P2[2], P3[2];
-      int n_fact = FactorizeRadialTensor(tensor, P1, P2, P3);
+    Eigen::Matrix<double, 2, 3> P1[2], P2[2], P3[2];
+    int n_fact = FactorizeRadialTensor(tensor, P1, P2, P3);
 
-      for(int j = 0; j < n_fact; ++j) {
-        // Perform metric upgrade (guaranteed to exist, though might be complex!)
-        Eigen::Matrix3d H;
-        if(!MetricUpgradeRadial(P2[j],P3[j], &H)) {
-            continue; // no real upgrade
-        }
-        P2[j] = P2[j] * H;
-        P3[j] = P3[j] * H;
-        P2[j] = P2[j] / P2[j].row(0).norm();
-        P3[j] = P3[j] / P3[j].row(0).norm();
+    for (int j = 0; j < n_fact; ++j) {
+      // Perform metric upgrade (guaranteed to exist, though might be complex!)
+      Eigen::Matrix3d H;
+      if (!MetricUpgradeRadial(P2[j], P3[j], &H)) {
+        continue;  // no real upgrade
+      }
+      P2[j] = P2[j] * H;
+      P3[j] = P3[j] * H;
+      P2[j] = P2[j] / P2[j].row(0).norm();
+      P3[j] = P3[j] / P3[j].row(0).norm();
 
-        // There are two possible flips here
-        //  1. Sign of each camera can be flipped independently (we keep first as eye(3) though)
-        //  2. Flip along z axis in world space (i.e. diag(1,1,-1))
-        // We go through each and only add the ones that have consistent half-plane constraints
+      // There are two possible flips here
+      //  1. Sign of each camera can be flipped independently (we keep first as
+      //  eye(3) though)
+      //  2. Flip along z axis in world space (i.e. diag(1,1,-1))
+      // We go through each and only add the ones that have consistent
+      // half-plane constraints
 
-        std::vector<Eigen::Matrix3d> rotations(3);
-        rotations[0].setIdentity();
-        std::vector<double> residuals;
+      std::vector<Eigen::Matrix3d> rotations(3);
+      rotations[0].setIdentity();
+      std::vector<double> residuals;
 
-        for (int flip_z = 0; flip_z < 2; ++flip_z) {
+      for (int flip_z = 0; flip_z < 2; ++flip_z) {
         for (int flip2 = 0; flip2 < 2; ++flip2) {
-        for (int flip3 = 0; flip3 < 2; ++flip3) {
+          for (int flip3 = 0; flip3 < 2; ++flip3) {
             rotations[1].topRows<2>() = P2[j];
             rotations[2].topRows<2>() = P3[j];
 
-            if(flip_z) {
-                rotations[1].col(2) *= -1.0;
-                rotations[2].col(2) *= -1.0;
+            if (flip_z) {
+              rotations[1].col(2) *= -1.0;
+              rotations[2].col(2) *= -1.0;
             }
-            if(flip2) {
-                rotations[1] *= -1.0;
+            if (flip2) {
+              rotations[1] *= -1.0;
             }
-            if(flip3) {
-                rotations[2] *= -1.0;
+            if (flip3) {
+              rotations[2] *= -1.0;
             }
 
             // Complete to full rotations
-            rotations[1].row(2) = rotations[1].row(0).cross(rotations[1].row(1));
-            rotations[2].row(2) = rotations[2].row(0).cross(rotations[2].row(1));
+            rotations[1].row(2) =
+                rotations[1].row(0).cross(rotations[1].row(1));
+            rotations[2].row(2) =
+                rotations[2].row(0).cross(rotations[2].row(1));
 
-            // To check the half-plane constraints we compute the residuals which 
-            // returns double_max if the constraints are violated            
+            // To check the half-plane constraints we compute the residuals
+            // which returns double_max if the constraints are violated
             Residuals(points2D, weights, rotations, &residuals);
 
             bool ok = true;
-            for(double p : residuals) {
-                ok &= p < 1e-3; // these should be satisfied exactly (up to numerical instabilities)
+            for (double p : residuals) {
+              ok &= p < 1e-3;  // these should be satisfied exactly (up to
+                               // numerical instabilities)
             }
-            if(ok) {
-                output.push_back(rotations);
+            if (ok) {
+              output.push_back(rotations);
             }
-        }}}
+          }
+        }
       }
+    }
   }
 
   return output;
 }
 void RadialTrifocalTensorEstimator::Residuals(const std::vector<X_t>& points2D,
-                        const std::vector<Y_t>& weights, const M_t& rotations, std::vector<double>* residuals) {
-    CHECK_EQ(rotations.size(), 3);
-    residuals->resize(points2D.size());
-    for(size_t i = 0; i < points2D.size(); ++i) {
-        // For residuals we triangulate the direction with two views and measure error in the third
-        const Eigen::Vector2d &x1 = points2D[i].x1;
-        const Eigen::Vector2d &x2 = points2D[i].x2;
-        const Eigen::Vector2d &x3 = points2D[i].x3;
+                                              const std::vector<Y_t>& weights,
+                                              const M_t& rotations,
+                                              std::vector<double>* residuals) {
+  CHECK_EQ(rotations.size(), 3);
+  residuals->resize(points2D.size());
+  for (size_t i = 0; i < points2D.size(); ++i) {
+    // For residuals we triangulate the direction with two views and measure
+    // error in the third
+    const Eigen::Vector2d& x1 = points2D[i].x1;
+    const Eigen::Vector2d& x2 = points2D[i].x2;
+    const Eigen::Vector2d& x3 = points2D[i].x3;
 
-        // Setup plane normals        
-        Eigen::Vector3d n1 = x1(1) * rotations[0].row(0) - x1(0) * rotations[0].row(1);
-        Eigen::Vector3d n2 = x2(1) * rotations[1].row(0) - x2(0) * rotations[1].row(1);
-        Eigen::Vector3d n3 = x3(1) * rotations[2].row(0) - x3(0) * rotations[2].row(1);
-        n1.normalize();
-        n2.normalize();
-        n3.normalize();
+    // Setup plane normals
+    Eigen::Vector3d n1 =
+        x1(1) * rotations[0].row(0) - x1(0) * rotations[0].row(1);
+    Eigen::Vector3d n2 =
+        x2(1) * rotations[1].row(0) - x2(0) * rotations[1].row(1);
+    Eigen::Vector3d n3 =
+        x3(1) * rotations[2].row(0) - x3(0) * rotations[2].row(1);
+    n1.normalize();
+    n2.normalize();
+    n3.normalize();
 
-        // Triangulate points (or rather directions)
-        Eigen::Vector3d X12 = n1.cross(n2).normalized();
-        Eigen::Vector3d X13 = n1.cross(n3).normalized();
-        Eigen::Vector3d X23 = n2.cross(n3).normalized();
+    // Triangulate points (or rather directions)
+    Eigen::Vector3d X12 = n1.cross(n2).normalized();
+    Eigen::Vector3d X13 = n1.cross(n3).normalized();
+    Eigen::Vector3d X23 = n2.cross(n3).normalized();
 
-        // Correct the sign
-        if(x1.dot(rotations[0].topRows<2>() * X12) < 0) {
-            X12 *= -1.0;
-        }
-        if(x1.dot(rotations[0].topRows<2>() * X13) < 0) {
-            X13 *= -1.0;
-        }
-        if(x2.dot(rotations[1].topRows<2>() * X23) < 0) {
-            X23 *= -1.0;
-        }
-
-        // Check half-plane constraints in the other views
-        if(x2.dot(rotations[1].topRows<2>() * X12) < 0 ||
-           x3.dot(rotations[2].topRows<2>() * X12) < 0 ||
-           x2.dot(rotations[1].topRows<2>() * X13) < 0 ||
-           x3.dot(rotations[2].topRows<2>() * X13) < 0 ||
-           x1.dot(rotations[0].topRows<2>() * X23) < 0 ||
-           x3.dot(rotations[2].topRows<2>() * X23) < 0) {
-          (*residuals)[i] = std::numeric_limits<double>::max();
-          continue;
-        }
-
-        // Compute residuals in the view not used for triangulation
-        Eigen::Vector2d p1 = (rotations[0].topRows<2>() * X23).normalized();
-        Eigen::Vector2d p2 = (rotations[1].topRows<2>() * X13).normalized();
-        Eigen::Vector2d p3 = (rotations[2].topRows<2>() * X12).normalized();
-
-        double res1 = (x1 - p1.dot(x1)*p1).squaredNorm();
-        double res2 = (x2 - p2.dot(x2)*p2).squaredNorm();
-        double res3 = (x3 - p3.dot(x3)*p3).squaredNorm();
-
-        (*residuals)[i] = weights[i] * (res1 + res2 + res3) / 3.0;
+    // Correct the sign
+    if (x1.dot(rotations[0].topRows<2>() * X12) < 0) {
+      X12 *= -1.0;
     }
-                        
-}
+    if (x1.dot(rotations[0].topRows<2>() * X13) < 0) {
+      X13 *= -1.0;
+    }
+    if (x2.dot(rotations[1].topRows<2>() * X23) < 0) {
+      X23 *= -1.0;
+    }
 
+    // Check half-plane constraints in the other views
+    if (x2.dot(rotations[1].topRows<2>() * X12) < 0 ||
+        x3.dot(rotations[2].topRows<2>() * X12) < 0 ||
+        x2.dot(rotations[1].topRows<2>() * X13) < 0 ||
+        x3.dot(rotations[2].topRows<2>() * X13) < 0 ||
+        x1.dot(rotations[0].topRows<2>() * X23) < 0 ||
+        x3.dot(rotations[2].topRows<2>() * X23) < 0) {
+      (*residuals)[i] = std::numeric_limits<double>::max();
+      continue;
+    }
+
+    // Compute residuals in the view not used for triangulation
+    Eigen::Vector2d p1 = (rotations[0].topRows<2>() * X23).normalized();
+    Eigen::Vector2d p2 = (rotations[1].topRows<2>() * X13).normalized();
+    Eigen::Vector2d p3 = (rotations[2].topRows<2>() * X12).normalized();
+
+    double res1 = (x1 - p1.dot(x1) * p1).squaredNorm();
+    double res2 = (x2 - p2.dot(x2) * p2).squaredNorm();
+    double res3 = (x3 - p3.dot(x3) * p3).squaredNorm();
+
+    (*residuals)[i] = weights[i] * (res1 + res2 + res3) / 3.0;
+  }
+}
 
 // Estimate radial trifocal tensor (intersecting principal axes)
 // from 2D-2D-2D correspondences
 bool EstimateRadialTrifocalTensor(
-                          const std::vector<Eigen::Vector2d>& points2D_1,
-                          const std::vector<Eigen::Vector2d>& points2D_2,
-                          const std::vector<Eigen::Vector2d>& points2D_3,                          
-                          std::vector<Eigen::Matrix3d> &rotations,
-                          size_t* num_inliers, std::vector<char>* inlier_mask) {
-   
+    const std::vector<Eigen::Vector2d>& points2D_1,
+    const std::vector<Eigen::Vector2d>& points2D_2,
+    const std::vector<Eigen::Vector2d>& points2D_3,
+    std::vector<Eigen::Matrix3d>& rotations, size_t* num_inliers,
+    std::vector<char>* inlier_mask) {
+  std::vector<RadialTrifocalTensorEstimator::PointData> corrs;
+  std::vector<double> weights;
+  corrs.resize(points2D_1.size());
+  weights.resize(points2D_1.size());
 
-   std::vector<RadialTrifocalTensorEstimator::PointData> corrs;
-   std::vector<double> weights;
-   corrs.resize(points2D_1.size());
-   weights.resize(points2D_1.size());
- 
-   for(size_t i = 0; i < points2D_1.size(); ++i) {
-       corrs[i].x1 = points2D_1[i];
-       corrs[i].x2 = points2D_2[i];
-       corrs[i].x3 = points2D_3[i];
-       weights[i] = 1.0; // TODO: actually use the weights...
-   }
+  for (size_t i = 0; i < points2D_1.size(); ++i) {
+    corrs[i].x1 = points2D_1[i];
+    corrs[i].x2 = points2D_2[i];
+    corrs[i].x3 = points2D_3[i];
+    weights[i] = 1.0;  // TODO: actually use the weights...
+  }
 
-   RANSACOptions options;
-   options.max_error = 5.0;
-   options.min_num_trials = 10000;
-   options.max_num_trials = 100000;
-   options.confidence = 0.9999;
+  RANSACOptions options;
+  options.max_error = 5.0;
+  options.min_num_trials = 10000;
+  options.max_num_trials = 100000;
+  options.confidence = 0.9999;
 
-   LORANSAC<RadialTrifocalTensorEstimator, RadialTrifocalTensorEstimator, MEstimatorSupportMeasurer> ransac(options);
+  LORANSAC<RadialTrifocalTensorEstimator, RadialTrifocalTensorEstimator,
+           MEstimatorSupportMeasurer>
+      ransac(options);
 
-   auto report = ransac.Estimate(corrs, weights);
-   
-   if(!report.success) {
-       return false;
-   }
+  auto report = ransac.Estimate(corrs, weights);
 
-   *num_inliers = report.support.num_inliers;
-   *inlier_mask = report.inlier_mask;
+  if (!report.success) {
+    return false;
+  }
 
-   rotations = report.model;
-   
-   return true;
+  *num_inliers = report.support.num_inliers;
+  *inlier_mask = report.inlier_mask;
+
+  rotations = report.model;
+
+  return true;
 }
 
-}
-}
+}  // namespace init
+}  // namespace colmap
