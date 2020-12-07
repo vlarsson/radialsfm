@@ -71,10 +71,17 @@ bool InitializeRadialReconstruction(const DatabaseCache& database_cache,
     return false;
   }
 
-  // We now have the poses of the first three cameras 
-  // Next we triangulate a synthetic pinhole image
-  // TODO
+  if(!InitializeRemainingViews(tracks, poses)) {
+    std::cout << "Unable to estimate mixed trifocal tensor. \n";
+    return false;
+  }
 
+  for(int i = 0; i < 5; ++i) {
+    std::cout << "q" << i << " = " << RotationMatrixToQuaternion(poses[i].leftCols<3>()).transpose() << " " << poses[i](0,3) << " " << poses[i](1,3) << "\n";
+  }
+
+
+  // TODO Bundle adjustment
 
   return true;
 }
@@ -102,7 +109,7 @@ std::vector<FeatureTrack> BuildFeatureTracksForInitialization(
   }
 
   std::unordered_map<image_t, int> image_id_idx_map;
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 5; ++i) {
     image_id_idx_map.emplace(image_ids.at(i), i);
   }
 
@@ -183,7 +190,7 @@ bool InitializeFirstTriplet(const std::vector<FeatureTrack>& tracks,
     std::cout << "Estimation failed!\n";
     return false;
   }
-  std::cout << StringPrintf("Estimated trifocal tensor with %d / %d inliers\n",
+  std::cout << StringPrintf("Estimated radial trifocal tensor with %d / %d inliers\n",
                             num_inliers, x1.size());
 
   for (int i = 0; i < 3; ++i) {
@@ -192,6 +199,92 @@ bool InitializeFirstTriplet(const std::vector<FeatureTrack>& tracks,
   }
 
   return true;
+}
+
+
+bool InitializeRemainingViews(const std::vector<FeatureTrack>& tracks,
+                            std::vector<Eigen::Matrix3x4d>& poses) {
+ 
+  // synthetic central image
+  std::vector<Eigen::Vector3d> bearingVectors;
+  std::vector<Eigen::Vector2d> points2D_4, points2D_5;
+  
+  double kTolRadial = 5.0;
+
+  // Collect tracks that are useful
+  for (size_t i = 0; i < tracks.size(); ++i) {
+    int obs_123 = tracks[i].obs[0] + tracks[i].obs[1] + tracks[i].obs[2];    
+    if (obs_123 < 3 || !tracks[i].obs[3] || !tracks[i].obs[4]) {
+      continue;
+    }
+     
+    const Eigen::Vector2d &x1 = tracks[i].point2D[0];
+    const Eigen::Vector2d &x2 = tracks[i].point2D[1];
+    const Eigen::Vector2d &x3 = tracks[i].point2D[2];
+    const Eigen::Vector2d &x4 = tracks[i].point2D[3];
+    const Eigen::Vector2d &x5 = tracks[i].point2D[4];
+
+    // Triangulate synthetic central image
+    Eigen::Matrix3d n;
+    n.row(0) = x1(1) * poses[0].block<1,3>(0,0) - x1(0) * poses[0].block<1,3>(1,0);
+    n.row(1) = x2(1) * poses[1].block<1,3>(0,0) - x2(0) * poses[1].block<1,3>(1,0);
+    n.row(2) = x3(1) * poses[2].block<1,3>(0,0) - x3(0) * poses[2].block<1,3>(1,0);
+
+    n.row(0).normalize();
+    n.row(1).normalize();
+    n.row(2).normalize();
+
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd(n, Eigen::ComputeFullV);
+    Eigen::Vector3d X = svd.matrixV().col(2);
+
+    Eigen::Vector2d p1 = (poses[0].block<2,3>(0,0) * X).normalized();
+    Eigen::Vector2d p2 = (poses[1].block<2,3>(0,0) * X).normalized();
+    Eigen::Vector2d p3 = (poses[2].block<2,3>(0,0) * X).normalized();
+
+    if(x1.dot(p1) < 0) {
+      X = -X;
+      p1 = -p1;
+      p2 = -p2;
+      p3 = -p3;
+    }
+
+    if(x2.dot(p2) < 0 || x3.dot(p3) < 0) {
+      continue;
+    }
+
+    double res1 = (x1 - p1.dot(x1) * p1).squaredNorm();
+    double res2 = (x2 - p2.dot(x2) * p2).squaredNorm();
+    double res3 = (x3 - p3.dot(x3) * p3).squaredNorm();
+    double res = (res1 + res2 + res3) / 3.0;
+
+    if(res < kTolRadial * kTolRadial) {
+      bearingVectors.push_back(X);
+      points2D_4.push_back(x4);
+      points2D_5.push_back(x5);
+    }
+  }
+  
+  std::cout << "Estimating mixed trifocal tensor from " << bearingVectors.size() << " correspondences.\n";
+  std::vector<char> inlier_mask;
+  size_t num_inliers;
+
+  std::vector<Eigen::Matrix3x4d> est_poses;
+  bool success = EstimateMixedTrifocalTensor(bearingVectors, points2D_4, points2D_5, est_poses,
+                                              &num_inliers, &inlier_mask);
+
+  if (!success) {
+    std::cout << "Estimation failed!\n";
+    return false;
+  }
+  std::cout << StringPrintf("Estimated mixed trifocal tensor with %d / %d inliers\n",
+                            num_inliers, bearingVectors.size());
+
+  poses[3] = est_poses[1];
+  poses[4] = est_poses[2];
+  
+  return true;
+
+
 }
 
 }  // namespace init

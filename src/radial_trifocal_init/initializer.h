@@ -42,12 +42,15 @@ bool InitializeRadialReconstruction(const DatabaseCache& database_cache,
 
 struct FeatureTrack {
   std::array<Eigen::Vector2d, 5> point2D;
-  std::array<char, 5> obs;
+  std::array<bool, 5> obs;
 };
 std::vector<FeatureTrack> BuildFeatureTracksForInitialization(
     const DatabaseCache& database_cache, const std::vector<image_t>& image_ids);
 bool InitializeFirstTriplet(const std::vector<FeatureTrack>& tracks,
                             std::vector<Eigen::Matrix3x4d>& poses);
+
+bool InitializeRemainingViews(const std::vector<FeatureTrack>& tracks,
+                            std::vector<Eigen::Matrix3x4d>& poses);                            
 
 }  // namespace init
 }  // namespace colmap

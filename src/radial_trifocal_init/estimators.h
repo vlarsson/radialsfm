@@ -81,5 +81,55 @@ bool EstimateRadialTrifocalTensor(
     std::vector<Eigen::Matrix3d>& rotations, size_t* num_inliers,
     std::vector<char>* inlier_mask);
 
+
+
+class MixedTrifocalTensorEstimator {
+ public:
+  // Bearing vectors in the pinhole image
+  typedef Eigen::Vector3d X_t;
+
+  // Image observations in the radial cameras
+  struct PointData {
+    Eigen::Vector2d x1, x2;
+  };
+  typedef PointData Y_t;
+
+  // Radial cameras, pinhole image is assume to be [I 0]
+  typedef std::vector<Eigen::Matrix3x4d> M_t;
+
+  // The minimum number of samples needed to estimate a model.
+  static const int kMinNumSamples = 9;
+
+  // Estimate radial camera pose from 5 correspondences
+  //
+  // @param points2D   2D images points
+  // @param points3D   3D world points
+  //
+  // @return           Camera pose as a 3x4 matrix.
+  static std::vector<M_t> Estimate(const std::vector<X_t>& bearingVectors,
+                                   const std::vector<Y_t>& points2D);
+
+  // Calculate the squared reprojection error given a set of 2D-3D point
+  // correspondences and a projection matrix.
+  //
+  // @param points2D     2D image points as Nx2 matrix.
+  // @param points3D     3D world points as Nx3 matrix.
+  // @param proj_matrix  3x4 projection matrix.
+  // @param residuals    Output vector of residuals.
+  static void Residuals(const std::vector<X_t>& bearingVectors,
+                        const std::vector<Y_t>& points2D, const M_t& poses,
+                        std::vector<double>* residuals);
+};
+
+// Estimate radial trifocal tensor (intersecting principal axes)
+// from 2D-2D-2D correspondences
+bool EstimateMixedTrifocalTensor(
+    const std::vector<Eigen::Vector3d>& bearingVectors,
+    const std::vector<Eigen::Vector2d>& points2D_1,
+    const std::vector<Eigen::Vector2d>& points2D_2,
+    std::vector<Eigen::Matrix3x4d>& poses, size_t* num_inliers,
+    std::vector<char>* inlier_mask);
+
+
 }  // namespace init
 }  // namespace colmap

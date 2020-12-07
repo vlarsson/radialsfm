@@ -62,5 +62,8 @@ int SolveCalibRadialTrifocalTensor(const Eigen::Matrix<double, 2, 6>& x1,
                                    const Eigen::Matrix<double, 2, 6>& x2,
                                    const Eigen::Matrix<double, 2, 6>& x3,
                                    Eigen::Matrix<double, 8, 4>* sols);
+int SolveCalibMixedTrifocalTensor(const Eigen::Matrix<double, 3, 9> & x1,
+		const Eigen::Matrix<double, 2, 9> & x2, const Eigen::Matrix<double, 2, 9> & x3,
+		Eigen::Matrix<double, 12, 48> * sols);
 }  // namespace init
 }  // namespace colmap
