@@ -38,7 +38,8 @@ namespace colmap {
 namespace init {
 
 bool InitializeRadialReconstruction(const DatabaseCache& database_cache,
-                                    const std::vector<image_t>& image_ids) {
+                                    const std::vector<image_t>& image_ids,
+                                    std::vector<Eigen::Matrix3x4d> *poses) {
   CHECK_EQ(image_ids.size(), 5);
 
   std::vector<FeatureTrack> tracks =
@@ -63,23 +64,23 @@ bool InitializeRadialReconstruction(const DatabaseCache& database_cache,
   std::cout << StringPrintf(
       "Found %d correspondences useful for initialization.\n", tracks.size());
 
-  std::vector<Eigen::Matrix3x4d> poses(5);
+  
+  poses->resize(5);
 
-  if(!InitializeFirstTriplet(tracks, poses)) {
+  if(!InitializeFirstTriplet(tracks, *poses)) {
     std::cout << "Unable to estimate radial trifocal tensor for the first "
                  "three images. Maybe principal axes are not intersecting?\n";
     return false;
   }
 
-  if(!InitializeRemainingViews(tracks, poses)) {
+  if(!InitializeRemainingViews(tracks, *poses)) {
     std::cout << "Unable to estimate mixed trifocal tensor. \n";
     return false;
   }
 
   for(int i = 0; i < 5; ++i) {
-    std::cout << "q" << i << " = " << RotationMatrixToQuaternion(poses[i].leftCols<3>()).transpose() << " " << poses[i](0,3) << " " << poses[i](1,3) << "\n";
+    std::cout << "q" << i << " = " << RotationMatrixToQuaternion((*poses)[i].leftCols<3>()).transpose() << " " << (*poses)[i](0,3) << " " << (*poses)[i](1,3) << "\n";
   }
-
 
   // TODO Bundle adjustment
 

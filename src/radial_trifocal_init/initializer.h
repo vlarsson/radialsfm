@@ -38,7 +38,8 @@ namespace init {
 
 // Entry point for initialization
 bool InitializeRadialReconstruction(const DatabaseCache& database_cache,
-                                    const std::vector<image_t>& image_ids);
+                                    const std::vector<image_t>& image_ids,
+                                    std::vector<Eigen::Matrix3x4d> *poses);
 
 struct FeatureTrack {
   std::array<Eigen::Vector2d, 5> point2D;

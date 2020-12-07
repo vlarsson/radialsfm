@@ -1795,6 +1795,7 @@ int RunRadialTrifocalInitializer(int argc, char** argv) {
   std::string init_images_str;
   OptionManager options;
   options.AddDatabaseOptions();
+  options.AddMapperOptions();
   options.AddRequiredOption("output_path", &output_path);
   options.AddRequiredOption("init_images", &init_images_str);
   options.Parse(argc, argv);
@@ -1855,7 +1856,62 @@ int RunRadialTrifocalInitializer(int argc, char** argv) {
       init_image_names[4].c_str());
 
   // TODO initialize
-  init::InitializeRadialReconstruction(database_cache, init_image_ids);
+  std::vector<Eigen::Matrix3x4d> poses;
+  bool success = init::InitializeRadialReconstruction(database_cache, init_image_ids, &poses);
+
+  if(!success) {
+    std::cout << "Unable to initialize reconstruction.\n";
+    return EXIT_FAILURE;
+  }
+
+  
+  Reconstruction reconstruction;
+  reconstruction.SetUp(&database_cache.CorrespondenceGraph());
+
+  for(int i = 0; i < 5; ++i) {
+    const image_t image_id = init_image_ids[i];    
+    Image& image = database_cache.Image(image_id);
+    Camera &camera = database_cache.Camera(image.CameraId());
+        
+    image.SetQvec(RotationMatrixToQuaternion(poses[i].leftCols<3>()));
+    image.SetTvec(poses[i].rightCols<1>());
+
+    if (!reconstruction.ExistsCamera(image.CameraId())) {
+      reconstruction.AddCamera(camera);
+    }
+    reconstruction.AddImage(image);
+    reconstruction.RegisterImage(image_id);
+  }
+
+
+  // Triangulate points
+  IncrementalMapper mapper(&database_cache);
+  mapper.BeginReconstruction(&reconstruction);
+
+  const auto& mapper_options = *options.mapper;
+  const auto tri_options = mapper_options.Triangulation();
+  
+  for (size_t i = 0; i < 5; ++i) {
+    const image_t image_id = init_image_ids[i];
+
+    const auto& image = reconstruction.Image(image_id);
+
+    PrintHeading1(StringPrintf("Triangulating image #%d (%d)", image_id, i));
+
+    const size_t num_existing_points3D = image.NumPoints3D();
+
+    std::cout << "  => Image sees " << num_existing_points3D << " / "
+              << image.NumObservations() << " points" << std::endl;
+
+    mapper.TriangulateImage(tri_options, image_id);
+
+    std::cout << "  => Triangulated "
+              << (image.NumPoints3D() - num_existing_points3D) << " points"
+              << std::endl;
+  }
+
+
+  reconstruction.WriteBinary(output_path);
 
   return EXIT_SUCCESS;
 }
