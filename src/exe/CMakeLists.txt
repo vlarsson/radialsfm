@@ -36,4 +36,4 @@ if(IS_MSVC)
 endif()
 
 COLMAP_ADD_EXECUTABLE(colmap_exe colmap.cc)
-set_target_properties(colmap_exe PROPERTIES OUTPUT_NAME colmap)
+set_target_properties(colmap_exe PROPERTIES OUTPUT_NAME radial_colmap)

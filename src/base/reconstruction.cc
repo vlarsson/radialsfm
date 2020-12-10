@@ -735,6 +735,7 @@ size_t Reconstruction::FilterAllPoints3D(const double max_reproj_error,
   size_t num_filtered = 0;
   num_filtered +=
       FilterPoints3DWithLargeReprojectionError(max_reproj_error, point3D_ids);
+  std::cout << StringPrintf("(Filtered due to reproj: %d)\n", num_filtered);
   num_filtered +=
       FilterPoints3DWithSmallTriangulationAngle(min_tri_angle, point3D_ids);
   return num_filtered;
@@ -1333,8 +1334,9 @@ size_t Reconstruction::FilterPoints3DWithSmallTriangulationAngle(
   // Minimum triangulation angle in radians.
   const double min_tri_angle_rad = DegToRad(min_tri_angle);
 
-  // Cache for image projection centers.
+  // Cache for image projection centers and viewing directions
   EIGEN_STL_UMAP(image_t, Eigen::Vector3d) proj_centers;
+  EIGEN_STL_UMAP(image_t, Eigen::Vector3d) principal_axes;
 
   for (const auto point3D_id : point3D_ids) {
     if (!ExistsPoint3D(point3D_id)) {
@@ -1343,29 +1345,73 @@ size_t Reconstruction::FilterPoints3DWithSmallTriangulationAngle(
 
     const class Point3D& point3D = Point3D(point3D_id);
 
+    // whether the camera model is Radial1DCameraModel
+    std::vector<char> is_radial(point3D.Track().Length());
+
+
     // Calculate triangulation angle for all pairwise combinations of image
     // poses in the track. Only delete point if none of the combinations
     // has a sufficient triangulation angle.
     bool keep_point = false;
     for (size_t i1 = 0; i1 < point3D.Track().Length(); ++i1) {
       const image_t image_id1 = point3D.Track().Element(i1).image_id;
-
+      const class Camera &camera1 = Camera(Image(image_id1).CameraId());
+      is_radial[i1] = camera1.ModelId() == Radial1DCameraModel::model_id;
+      
       Eigen::Vector3d proj_center1;
+      Eigen::Vector3d principal_axis1;
+
       if (proj_centers.count(image_id1) == 0) {
         const class Image& image1 = Image(image_id1);
         proj_center1 = image1.ProjectionCenter();
         proj_centers.emplace(image_id1, proj_center1);
+        principal_axis1 = image1.ProjectionMatrix().block<1,3>(2,0);
+        principal_axes.emplace(image_id1, principal_axis1);
       } else {
         proj_center1 = proj_centers.at(image_id1);
+        principal_axis1 = principal_axes.at(image_id1);
       }
 
       for (size_t i2 = 0; i2 < i1; ++i2) {
         const image_t image_id2 = point3D.Track().Element(i2).image_id;
         const Eigen::Vector3d proj_center2 = proj_centers.at(image_id2);
+        const Eigen::Vector3d principal_axis2 = principal_axes.at(image_id2);
 
-        const double tri_angle = CalculateTriangulationAngle(
+        double tri_angle = 0.0;
+
+        if(is_radial[i1] && is_radial[i2]) {
+          // Two radial cameras, find other radial camera and compute 3x plane angles
+          for (size_t i3 = 0; i3 < i2; ++i3) {
+            if(!is_radial[i3]) {
+              continue;
+            }
+            const image_t image_id3 = point3D.Track().Element(i3).image_id;
+            const Eigen::Vector3d proj_center3 = proj_centers.at(image_id3);
+            const Eigen::Vector3d principal_axis3= principal_axes.at(image_id3);
+             
+            tri_angle = CalculateTriangulationAngleRadial(
+                proj_center1, principal_axis1, proj_center2, principal_axis2,
+                proj_center3, principal_axis3, point3D.XYZ());
+
+            if(tri_angle >= min_tri_angle) {
+              break;
+            }
+          }
+        } else if(is_radial[i1] && !is_radial[i2]) {
+          // One camera is radial, compute angle between plane and viewing ray
+          tri_angle = CalculateTriangulationAngleCentralRadial(
+            proj_center1, proj_center2, principal_axis2, point3D.XYZ());
+        } else if(!is_radial[i1] && is_radial[i2]) {
+          // other camera is radial and first is central
+          tri_angle = CalculateTriangulationAngleCentralRadial(
+            proj_center2, proj_center1, principal_axis1, point3D.XYZ());
+        } else {
+          // Both cameras are not radial, do standard COLMAP stuff
+          tri_angle = CalculateTriangulationAngle(
             proj_center1, proj_center2, point3D.XYZ());
 
+        }
+        
         if (tri_angle >= min_tri_angle_rad) {
           keep_point = true;
           break;

@@ -29,11 +29,16 @@
 //
 // Author: Viktor Larsson
 
+
+#include <ceres/ceres.h>
+#include <ceres/rotation.h>
+
 #include "radial_trifocal_init/estimators.h"
 #include "base/pose.h"
 #include "optim/loransac.h"
 #include "radial_trifocal_init/tensor.h"
 #include "util/misc.h"
+
 namespace colmap {
 namespace init {
 
@@ -108,9 +113,9 @@ RadialTrifocalTensorEstimator::Estimate(const std::vector<X_t>& points2D,
             Residuals(points2D, weights, rotations, &residuals);
 
             bool ok = true;
-            for (double p : residuals) {
-              ok &= p < 1e-3;  // these should be satisfied exactly (up to
-                               // numerical instabilities)
+            for (int k = 0; k < 6; ++k) {
+              ok &= residuals[k] < 1e-3;  // these should be satisfied exactly (up to
+                                          // numerical instabilities)
             }
             if (ok) {
               output.push_back(rotations);
@@ -120,9 +125,10 @@ RadialTrifocalTensorEstimator::Estimate(const std::vector<X_t>& points2D,
       }
     }
   }
-
   return output;
 }
+
+
 void RadialTrifocalTensorEstimator::Residuals(const std::vector<X_t>& points2D,
                                               const std::vector<Y_t>& weights,
                                               const M_t& rotations,
@@ -231,6 +237,137 @@ bool EstimateRadialTrifocalTensor(
   return true;
 }
 
+
+
+class RadialTrifocalCostFunction {
+ public:
+  explicit RadialTrifocalCostFunction(const Eigen::Vector2d& point2D)
+      : observed_x_(point2D(0)), observed_y_(point2D(1)) {}
+
+  static ceres::CostFunction* Create(const Eigen::Vector2d& point2D) {
+    return (new ceres::AutoDiffCostFunction<RadialTrifocalCostFunction, 2, 4, 3>(
+        new RadialTrifocalCostFunction(point2D)));
+  }
+
+  template <typename T>
+  bool operator()(const T* const qvec, const T* const point3D,
+                  T* residuals) const {
+    // Rotate and translate.
+    T projection[3];
+    ceres::UnitQuaternionRotatePoint(qvec, point3D, projection);
+    
+    // Compute radial reprojection error
+    T dot_product = projection[0] * T(observed_x_) + projection[1] * T(observed_y_);
+    T alpha = dot_product /
+              (projection[0] * projection[0] + projection[1] * projection[1]);
+
+    // Re-projection error.
+    residuals[0] = alpha * projection[0] - T(observed_x_);
+    residuals[1] = alpha * projection[1] - T(observed_y_);
+
+    return true;
+  }
+
+ private:
+  const double observed_x_;
+  const double observed_y_;
+};
+
+
+// Refine radial trifocal tensor (intersecting principal axes)
+// from 2D-2D-2D correspondences
+bool RefineRadialTrifocalTensor(
+    const std::vector<Eigen::Vector2d>& points2D_1,
+    const std::vector<Eigen::Vector2d>& points2D_2,
+    const std::vector<Eigen::Vector2d>& points2D_3,
+    std::vector<Eigen::Matrix3d>& rotations) {
+
+
+  std::vector<Eigen::Vector4d> qvecs;
+  for(int i = 0; i < 3; ++i) {
+    qvecs.push_back(RotationMatrixToQuaternion(rotations[i]));
+  }
+ 
+  ceres::Problem problem;
+
+  int n_points = 0;
+  // Triangulate 3D points (or rather directions)
+  // and add to problem
+  std::vector<Eigen::Vector3d> points3D(points2D_1.size());
+  ceres::LocalParameterization* point_parameterization = 
+      new ceres::HomogeneousVectorParameterization(3);
+
+  for(size_t i = 0; i < points2D_1.size(); ++i) {
+    const Eigen::Vector2d &x1 = points2D_1[i];
+    const Eigen::Vector2d &x2 = points2D_2[i];
+    const Eigen::Vector2d &x3 = points2D_3[i];
+
+    Eigen::Matrix3d n;
+    n.row(0) = x1(1) * rotations[0].block<1,3>(0,0) - x1(0) * rotations[0].block<1,3>(1,0);
+    n.row(1) = x2(1) * rotations[1].block<1,3>(0,0) - x2(0) * rotations[1].block<1,3>(1,0);
+    n.row(2) = x3(1) * rotations[2].block<1,3>(0,0) - x3(0) * rotations[2].block<1,3>(1,0);
+
+    n.row(0).normalize();
+    n.row(1).normalize();
+    n.row(2).normalize();
+
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd(n, Eigen::ComputeFullV);
+    Eigen::Vector3d X = svd.matrixV().col(2);
+
+    Eigen::Vector2d p1 = (rotations[0].block<2,3>(0,0) * X).normalized();
+    Eigen::Vector2d p2 = (rotations[1].block<2,3>(0,0) * X).normalized();
+    Eigen::Vector2d p3 = (rotations[2].block<2,3>(0,0) * X).normalized();
+
+    if(x1.dot(p1) < 0) {
+      X = -X;
+      p1 = -p1;
+      p2 = -p2;
+      p3 = -p3;
+    }
+
+    if(x2.dot(p2) < 0 || x3.dot(p3) < 0) {
+      continue;
+    }
+
+    points3D[i] = X;
+
+    problem.AddResidualBlock(RadialTrifocalCostFunction::Create(x1), nullptr,
+                                 qvecs[0].data(), points3D[i].data());
+    problem.AddResidualBlock(RadialTrifocalCostFunction::Create(x2), nullptr,
+                                 qvecs[1].data(), points3D[i].data());
+    problem.AddResidualBlock(RadialTrifocalCostFunction::Create(x3), nullptr,
+                                 qvecs[2].data(), points3D[i].data());
+
+    problem.SetParameterization(points3D[i].data(), point_parameterization);
+
+    n_points++;
+  }
+
+  if(n_points < 7) {
+    return false; 
+  }
+
+  ceres::LocalParameterization* quaternion_parameterization = 
+      new ceres::QuaternionParameterization;
+
+  problem.SetParameterization(qvecs[0].data(), quaternion_parameterization);
+  problem.SetParameterization(qvecs[1].data(), quaternion_parameterization);
+  problem.SetParameterization(qvecs[2].data(), quaternion_parameterization);
+  problem.SetParameterBlockConstant(qvecs[0].data());
+
+  ceres::Solver::Options options;
+  options.linear_solver_type = ceres::DENSE_SCHUR;
+  options.minimizer_progress_to_stdout = true;
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, &problem, &summary);
+
+  if(summary.IsSolutionUsable()) {
+    for(int i = 0; i < 3; ++i) {
+      rotations[i] = QuaternionToRotationMatrix(qvecs[i]);
+    }
+  }
+  return true;
+}
 
 
 

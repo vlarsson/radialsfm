@@ -124,6 +124,20 @@ std::vector<double> CalculateTriangulationAngles(
     const Eigen::Vector3d& proj_center1, const Eigen::Vector3d& proj_center2,
     const std::vector<Eigen::Vector3d>& points3D);
 
+
+double CalculateTriangulationAngleCentralRadial(const Eigen::Vector3d& proj_center1,
+                                   const Eigen::Vector3d& proj_center2,
+                                   const Eigen::Vector3d& principal_axis2,
+                                   const Eigen::Vector3d& point3D);
+
+double CalculateTriangulationAngleRadial(const Eigen::Vector3d& proj_center1,
+                                   const Eigen::Vector3d& principal_axis1,
+                                   const Eigen::Vector3d& proj_center2,
+                                   const Eigen::Vector3d& principal_axis2,
+                                   const Eigen::Vector3d& proj_center3,
+                                   const Eigen::Vector3d& principal_axis3,
+                                   const Eigen::Vector3d& point3D);
+
 }  // namespace colmap
 
 #endif  // COLMAP_SRC_BASE_TRIANGULATION_H_

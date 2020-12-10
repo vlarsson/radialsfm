@@ -82,8 +82,6 @@ bool InitializeRadialReconstruction(const DatabaseCache& database_cache,
     std::cout << "q" << i << " = " << RotationMatrixToQuaternion((*poses)[i].leftCols<3>()).transpose() << " " << (*poses)[i](0,3) << " " << (*poses)[i](1,3) << "\n";
   }
 
-  // TODO Bundle adjustment
-
   return true;
 }
 
@@ -191,8 +189,21 @@ bool InitializeFirstTriplet(const std::vector<FeatureTrack>& tracks,
     std::cout << "Estimation failed!\n";
     return false;
   }
+
   std::cout << StringPrintf("Estimated radial trifocal tensor with %d / %d inliers\n",
                             num_inliers, x1.size());
+
+  // Refine best solution
+  std::vector<Eigen::Vector2d> x1_inlier, x2_inlier, x3_inlier;
+  for(size_t i = 0; i < x1.size(); ++i) {
+    if(inlier_mask[i]) {
+      x1_inlier.push_back(x1[i]);
+      x2_inlier.push_back(x2[i]);
+      x3_inlier.push_back(x3[i]);
+    }
+  }
+  RefineRadialTrifocalTensor(x1_inlier, x2_inlier, x3_inlier, rotations);
+
 
   for (int i = 0; i < 3; ++i) {
     poses[i].leftCols<3>() = rotations[i];

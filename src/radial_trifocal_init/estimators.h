@@ -81,6 +81,14 @@ bool EstimateRadialTrifocalTensor(
     std::vector<Eigen::Matrix3d>& rotations, size_t* num_inliers,
     std::vector<char>* inlier_mask);
 
+// Refine radial trifocal tensor (intersecting principal axes)
+// from 2D-2D-2D correspondences
+bool RefineRadialTrifocalTensor(
+    const std::vector<Eigen::Vector2d>& points2D_1,
+    const std::vector<Eigen::Vector2d>& points2D_2,
+    const std::vector<Eigen::Vector2d>& points2D_3,
+    std::vector<Eigen::Matrix3d>& rotations);
+
 
 
 class MixedTrifocalTensorEstimator {

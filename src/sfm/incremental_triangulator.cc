@@ -211,15 +211,23 @@ size_t IncrementalTriangulator::CompleteImage(const Options& options,
     }
 
     // Add inliers to estimated track.
+    int num_constraints = 0;
     Track track;
     track.Reserve(corrs_data.size());
     for (size_t i = 0; i < inlier_mask.size(); ++i) {
       if (inlier_mask[i]) {
         const CorrData& corr_data = corrs_data[i];
         track.AddElement(corr_data.image_id, corr_data.point2D_idx);
-        num_tris += 1;
+        num_constraints += (corr_data.camera->ModelId() == Radial1DCameraModel::model_id) ? 1 : 2;
       }
     }
+
+    if(num_constraints < 4) {
+      // this is a underconstrained point, we do not add it to the reconstruction since it will get filtered later anyways
+      continue;
+    }
+
+    num_tris += track.Length();
 
     const point3D_t point3D_id = reconstruction_->AddPoint3D(xyz, track);
     modified_point3D_ids_.insert(point3D_id);
@@ -521,15 +529,22 @@ size_t IncrementalTriangulator::Create(
   }
 
   // Add inliers to estimated track.
+  int num_constraints = 0;
   Track track;
   track.Reserve(create_corrs_data.size());
   for (size_t i = 0; i < inlier_mask.size(); ++i) {
     if (inlier_mask[i]) {
       const CorrData& corr_data = create_corrs_data[i];
       track.AddElement(corr_data.image_id, corr_data.point2D_idx);
+      num_constraints += (corr_data.camera->ModelId() == Radial1DCameraModel::model_id) ? 1 : 2;
     }
   }
 
+  if(num_constraints < 4) {
+    // this is a underconstrained point, we do not add it to the reconstruction since it will get filtered later anyways
+    return 0;
+  }
+  
   // Add estimated point to reconstruction.
   const point3D_t point3D_id = reconstruction_->AddPoint3D(xyz, track);
   modified_point3D_ids_.insert(point3D_id);

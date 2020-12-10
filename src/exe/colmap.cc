@@ -1793,8 +1793,10 @@ int RunRigBundleAdjuster(int argc, char** argv) {
 int RunRadialTrifocalInitializer(int argc, char** argv) {
   std::string output_path;
   std::string init_images_str;
+  std::string image_path = "";
   OptionManager options;
   options.AddDatabaseOptions();
+  options.AddDefaultOption("image_path", &image_path);
   options.AddMapperOptions();
   options.AddRequiredOption("output_path", &output_path);
   options.AddRequiredOption("init_images", &init_images_str);
@@ -1848,6 +1850,10 @@ int RunRadialTrifocalInitializer(int argc, char** argv) {
     init_image_names[i] = database_cache.Image(init_image_ids[i]).Name();
   }
 
+  //////////////////////////////////////////////////////////////////////////////
+  // Initialize camera poses
+  //////////////////////////////////////////////////////////////////////////////
+
   PrintHeading1("Radial Trifocal Tensor Initializer");
   std::cout << StringPrintf(
       "initializing from images: %s, %s, %s, %s, %s\n",
@@ -1884,7 +1890,10 @@ int RunRadialTrifocalInitializer(int argc, char** argv) {
   }
 
 
+  //////////////////////////////////////////////////////////////////////////////
   // Triangulate points
+  //////////////////////////////////////////////////////////////////////////////
+
   IncrementalMapper mapper(&database_cache);
   mapper.BeginReconstruction(&reconstruction);
 
@@ -1910,8 +1919,57 @@ int RunRadialTrifocalInitializer(int argc, char** argv) {
               << std::endl;
   }
 
+  std::cout << StringPrintf("Initial reconstruction contains %d triangulated points.\n", reconstruction.NumPoints3D());  
 
-  reconstruction.WriteBinary(output_path);
+  //////////////////////////////////////////////////////////////////////////////
+  // Bundle adjustment
+  //////////////////////////////////////////////////////////////////////////////
+
+  auto ba_options = mapper_options.GlobalBundleAdjustment();  
+  ba_options.refine_principal_point = false;  
+
+  // Configure bundle adjustment.
+  BundleAdjustmentConfig ba_config;
+  for (const image_t image_id : init_image_ids) {
+    ba_config.AddImage(image_id);
+  }
+
+  for (int i = 0; i < mapper_options.ba_global_max_refinements; ++i) {
+    // Avoid degeneracies in bundle adjustment.
+    reconstruction.FilterObservationsWithNegativeDepth();
+
+    const size_t num_observations = reconstruction.ComputeNumObservations();
+
+    PrintHeading1("Bundle adjustment");
+    BundleAdjuster bundle_adjuster(ba_options, ba_config);
+    CHECK(bundle_adjuster.Solve(&reconstruction));
+
+    size_t num_changed_observations = 0;
+    num_changed_observations += CompleteAndMergeTracks(mapper_options, &mapper);
+    num_changed_observations += FilterPoints(mapper_options, &mapper);
+    const double changed =
+        static_cast<double>(num_changed_observations) / num_observations;
+    std::cout << StringPrintf("  => Changed observations: %.6f", changed)
+              << std::endl;
+    if (changed < mapper_options.ba_global_max_refinement_change) {
+      break;
+    }
+  }
+
+  reconstruction.Normalize();
+
+  std::cout << StringPrintf("Final reconstruction contains %d triangulated points.\n", reconstruction.NumPoints3D());
+
+
+  if(image_path != "") {
+    PrintHeading1("Extracting colors");
+    reconstruction.ExtractColorsForAllImages(image_path);
+  }
+
+  const bool kDiscardReconstruction = false;
+  mapper.EndReconstruction(kDiscardReconstruction);
+
+  reconstruction.WriteText(output_path);
 
   return EXIT_SUCCESS;
 }

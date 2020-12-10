@@ -163,6 +163,48 @@ double CalculateTriangulationAngle(const Eigen::Vector3d& proj_center1,
   return std::min(angle, M_PI - angle);
 }
 
+
+double CalculateTriangulationAngleCentralRadial(const Eigen::Vector3d& proj_center1,
+                                   const Eigen::Vector3d& proj_center2,
+                                   const Eigen::Vector3d& principal_axis2,
+                                   const Eigen::Vector3d& point3D) {
+  
+  // Normal for plane passing through the 3D point and continaing the radial camera
+  const Eigen::Vector3d n = (proj_center2 - point3D).cross(principal_axis2).normalized();
+
+  // Ray from camera to point
+  const Eigen::Vector3d ray = (proj_center1 - point3D).normalized();
+  
+  // Point is poorly triangulated if ray lies close to the plane
+  return M_PI_2 - std::acos(std::abs(ray.dot(n)));
+}
+
+double CalculateTriangulationAngleRadial(const Eigen::Vector3d& proj_center1,
+                                   const Eigen::Vector3d& principal_axis1,
+                                   const Eigen::Vector3d& proj_center2,
+                                   const Eigen::Vector3d& principal_axis2,
+                                   const Eigen::Vector3d& proj_center3,
+                                   const Eigen::Vector3d& principal_axis3,
+                                   const Eigen::Vector3d& point3D) {
+  
+  // Normals for planes passing through the 3d point and containing the radial camera 
+  const Eigen::Vector3d n1 = (proj_center1 - point3D).cross(principal_axis1).normalized();
+  const Eigen::Vector3d n2 = (proj_center2 - point3D).cross(principal_axis2).normalized();
+  const Eigen::Vector3d n3 = (proj_center3 - point3D).cross(principal_axis3).normalized();
+
+  // Triangulation is unstable if there is a vector that lies close to all planes
+  // We intersect pairwise planes and compute the angle to the third
+
+  const double angle12 = M_PI_2 - std::acos(std::abs(n1.cross(n2).normalized().dot(n3)));
+  const double angle13 = M_PI_2 - std::acos(std::abs(n1.cross(n3).normalized().dot(n2)));
+  const double angle23 = M_PI_2 - std::acos(std::abs(n2.cross(n3).normalized().dot(n1)));
+    
+  // TODO you can probably do this smarter (using that det(n1 n2 n3) = n1.cross(n2).dot(n3) etc)
+  // TODO this does not check the case where the three principal axes are intersecting!
+
+  return std::max(angle12, std::max(angle13, angle23));
+}
+
 std::vector<double> CalculateTriangulationAngles(
     const Eigen::Vector3d& proj_center1, const Eigen::Vector3d& proj_center2,
     const std::vector<Eigen::Vector3d>& points3D) {
