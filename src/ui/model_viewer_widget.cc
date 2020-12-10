@@ -773,8 +773,9 @@ void ModelViewerWidget::UploadPointData(const bool selection_mode) {
   // Assume we want to display the majority of points
   data.reserve(points3D.size());
 
-  const size_t min_track_len =
-      static_cast<size_t>(options_->render->min_track_len);
+  // If we have fewer than track_length cameras, we use this instead
+  const size_t min_track_len = std::min(images.size(), 
+      static_cast<size_t>(options_->render->min_track_len));
 
   if (selected_image_id_ == kInvalidImageId &&
       images.count(selected_image_id_) == 0) {
