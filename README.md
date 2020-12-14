@@ -1,7 +1,7 @@
 
 1D Radial Structure-from-Motion
 ======
-This is an extension of the incremental Structure-from-Motion framework [COLMAP](https://github.com/colmap/colmap) which allows for using the 1D Radial camera model. This is a cleaned up re-implementation of the original code used for the experiments in the paper
+This is an extension of the incremental Structure-from-Motion framework [COLMAP](https://github.com/colmap/colmap) which allows for using the 1D Radial camera model. This is a cleaned up re-implementation of the original code used in the paper
 
 `Larsson et al., Calibration-Free Structure-from-Motion with Calibrated Radial Trifocal Tensors, ECCV 2020`
 
@@ -10,7 +10,7 @@ The implementation should work with a mix of camera models (where some are 1D Ra
 
 Example datasets
 -----
-Two example datasets can be downloaded from [here](https://drive.google.com/drive/folders/180lCeaaIT9uNXZ4eUvimrU0RgbC4d7gy?usp=sharing). In addition to the images, we also provide the COLMAP databases if you want to avoid the image matching.
+Two example datasets can be downloaded from [here](https://drive.google.com/drive/folders/18SF81ln59D-RA4OigAv8rsAAG5MsZsGf?usp=sharing). In addition to the images, we also provide the COLMAP databases if you want to avoid the image matching.
 
 **Amsterdam Square** (72 images, Fisheye)
 
