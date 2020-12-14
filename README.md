@@ -68,7 +68,7 @@ mkdir $OUTPUT_PATH
         --image_path $DATASET_PATH/images/                  \
         --import_path $OUTPUT_PATH
         
-# Alternatively you can also run the directly mapper from the cli
+# Alternatively you can also directly run the mapper from the cli
 ./radial_colmap mapper                                      \
         --database_path $DATASET_PATH/database_radial.db    \
         --image_path $DATASET_PATH/images/                  \
@@ -77,7 +77,7 @@ mkdir $OUTPUT_PATH
 
 ```
 
-In this GUI you can show the cameras (the principal axes) by holding ALT and scrolling the mouse wheel. The camera forward translations are guestimated by assuming a single focal length for the entire image. Note that this is only used for visualization purposes and to normalize the scale of the reconstruction.
+In the GUI you can show the cameras (the principal axes) by holding ALT and scrolling the mouse wheel. The camera forward translations are guesstimated by assuming a single focal length for the entire image. Note that this is only used for visualization purposes and to normalize the scale of the reconstruction.
 
 
 ## Citing
