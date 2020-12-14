@@ -15,14 +15,14 @@ Two example datasets can be downloaded from [here](https://drive.google.com/driv
 **Amsterdam Square** (72 images, Fisheye)
 
 Example initialization images: `R0010149b.jpg,R0010150b.jpg,R0010151b.jpg,R0010146b.jpg,R0010144b.jpg`
-<img src="https://user-images.githubusercontent.com/48490995/102066495-2f52b580-3dfa-11eb-8737-1bbc2938d44c.png" height="300">
-<img src="https://user-images.githubusercontent.com/48490995/102066639-5a3d0980-3dfa-11eb-9bd8-20306259157c.gif" height="300">
+<img src="https://user-images.githubusercontent.com/48490995/102066495-2f52b580-3dfa-11eb-8737-1bbc2938d44c.png" height="250">
+<img src="https://user-images.githubusercontent.com/48490995/102066639-5a3d0980-3dfa-11eb-9bd8-20306259157c.gif" height="250">
 
 **Grossmunster Church** (372 images, Fisheye (cropped))
 
 Example initialization images: `DSC_2637.JPG,DSC_2638.JPG,DSC_2639.JPG,DSC_2640.JPG,DSC_2641.JPG`
-<img src="https://user-images.githubusercontent.com/48490995/102066770-86588a80-3dfa-11eb-964c-837a04cae108.png" height="300">
-<img src="https://user-images.githubusercontent.com/48490995/102066820-96706a00-3dfa-11eb-8898-b9d3b503f2b9.gif" height="300">
+<img src="https://user-images.githubusercontent.com/48490995/102066770-86588a80-3dfa-11eb-964c-837a04cae108.png" height="250">
+<img src="https://user-images.githubusercontent.com/48490995/102066820-96706a00-3dfa-11eb-8898-b9d3b503f2b9.gif" height="250">
 
 
 Getting started
