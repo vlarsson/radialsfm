@@ -1,15 +1,29 @@
+
 1D Radial Structure-from-Motion
 ======
-
-About
------
 This is an extension of the incremental Structure-from-Motion framework [COLMAP](https://github.com/colmap/colmap) which allows for using the 1D Radial camera model. This is a cleaned up re-implementation of the original code used for the experiments in the paper
 
 `Larsson et al., Calibration-Free Structure-from-Motion with Calibrated Radial Trifocal Tensors, ECCV 2020`
 
 and there might be some minor differences in the results. If you have any problems or find any bugs, please create an issue.
+The implementation should work with a mix of camera models (where some are 1D Radial cameras) but this has not been tested thoroughly.
 
-The implementation should work with a mix of camera models (where some are 1D Radial) but this has not been tested thoroughly.
+Example datasets
+-----
+Two example datasets can be downloaded from [here](https://drive.google.com/drive/folders/180lCeaaIT9uNXZ4eUvimrU0RgbC4d7gy?usp=sharing). In addition to the images, we also provide the COLMAP databases if you want to avoid the image matching.
+
+**Amsterdam Square** (72 images, Fisheye)
+
+Example initialization images: `R0010149b.jpg,R0010150b.jpg,R0010151b.jpg,R0010146b.jpg,R0010144b.jpg`
+<img src="https://user-images.githubusercontent.com/48490995/102066495-2f52b580-3dfa-11eb-8737-1bbc2938d44c.png" height="300">
+<img src="https://user-images.githubusercontent.com/48490995/102066639-5a3d0980-3dfa-11eb-9bd8-20306259157c.gif" height="300">
+
+**Grossmunster Church** (372 images, Fisheye (cropped))
+
+Example initialization images: `DSC_2637.JPG,DSC_2638.JPG,DSC_2639.JPG,DSC_2640.JPG,DSC_2641.JPG`
+<img src="https://user-images.githubusercontent.com/48490995/102066770-86588a80-3dfa-11eb-964c-837a04cae108.png" height="300">
+<img src="https://user-images.githubusercontent.com/48490995/102066820-96706a00-3dfa-11eb-8898-b9d3b503f2b9.gif" height="300">
+
 
 Getting started
 -----
@@ -17,7 +31,7 @@ For building from source, you can follow the intructions for vanilla COLMAP, see
 
 The implementation does not include an automatic way to select initialization images so these must be supplied by the user during runtime. It is also possible to provide an initial reconstruction and continue the incremental SfM from this.
 
-Below we show a short demo example of the reconstruction process. The fisheye dataset of Amsterdam Square can be downloaded [here](https://drive.google.com/drive/folders/180lCeaaIT9uNXZ4eUvimrU0RgbC4d7gy?usp=sharing).
+Below we show a short demo example of the reconstruction process for the Amsterdam Square dataset.
 
 ```bash
 DATASET_PATH=~/datasets/ricoh_dam_square
