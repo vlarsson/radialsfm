@@ -227,7 +227,8 @@ void RadialP5PEstimator::Residuals(const std::vector<X_t>& points2D,
 double EstimateRadialCameraForwardOffset(
     const Eigen::Matrix3x4d proj_matrix,
     const std::vector<Eigen::Vector2d> points2D,
-    const std::vector<Eigen::Vector3d> points3D) {
+    const std::vector<Eigen::Vector3d> points3D,
+    bool *negative_focal) {
   // We guesstimate the forward translation by assuming a single focal length
   Eigen::Matrix2d AtA;
   Eigen::Vector2d Atb;
@@ -250,6 +251,9 @@ double EstimateRadialCameraForwardOffset(
   }
 
   const Eigen::Vector2d sol = AtA.inverse() * Atb;
+  if(negative_focal != nullptr) {
+    *negative_focal = (sol(0) < 0);
+  }
   return sol(1);
 }
 

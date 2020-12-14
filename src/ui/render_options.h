@@ -44,7 +44,7 @@ struct RenderOptions {
 
   // Minimum track length for a point to be rendered.
   // (Note we use 6 here, which corresponds to the same number of constraints
-  //  for radial cameras, as 3 does for pinhole cameras)
+  //  for radial cameras, as 3 does for pinhole)
   int min_track_len = 6;
 
   // Maximum error for a point to be rendered.

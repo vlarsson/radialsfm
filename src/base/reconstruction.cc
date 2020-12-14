@@ -422,9 +422,12 @@ void Reconstruction::Normalize(const double extent, const double p0,
 }
 
 void Reconstruction::NormalizeRadialCameras() {
+  size_t negative_focal_count = 0;
+  bool all_radial = true;
   for (auto& image : images_) {
     const class Camera& camera = Camera(image.second.CameraId());
     if (camera.ModelId() != Radial1DCameraModel::model_id) {
+      all_radial = false;
       continue;
     }
 
@@ -440,12 +443,35 @@ void Reconstruction::NormalizeRadialCameras() {
     }
 
     Eigen::Matrix3x4d proj_matrix = image.second.ProjectionMatrix();
+    bool negative_focal = false;
     double tz =
-        EstimateRadialCameraForwardOffset(proj_matrix, points2D, points3D);
+        EstimateRadialCameraForwardOffset(proj_matrix, points2D, points3D, &negative_focal);
     Eigen::Vector3d tvec = proj_matrix.col(3);
     tvec(2) += tz;
     image.second.SetTvec(tvec);
+    if(negative_focal) {
+      negative_focal_count++;
+    }
   }
+
+  // if we only have radial cameras and a majority have negative
+  // psuedo-focal length, we flip the global z-axis
+  if(all_radial && negative_focal_count > NumRegImages() / 2) {
+    for(auto& image : images_) {
+      Eigen::Matrix3d R = image.second.RotationMatrix();
+      R.col(2) *= -1.0;
+      R.row(2) *= -1.0;
+      image.second.SetQvec(RotationMatrixToQuaternion(R));
+      Eigen::Vector3d t = image.second.Tvec();
+      t(2) *= -1.0;
+      image.second.SetTvec(t);
+    }
+
+    for(auto& point : points3D_) {
+      point.second.XYZ()(2) *= -1.0;
+    }
+  }
+
 }
 
 void Reconstruction::Transform(const SimilarityTransform3& tform) {

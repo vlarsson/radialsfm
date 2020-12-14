@@ -87,7 +87,8 @@ class RadialP5PEstimator {
 double EstimateRadialCameraForwardOffset(
     const Eigen::Matrix3x4d proj_matrix,
     const std::vector<Eigen::Vector2d> points2D,
-    const std::vector<Eigen::Vector3d> points3D);
+    const std::vector<Eigen::Vector3d> points3D,
+    bool *negative_focal);
 }  // namespace colmap
 
 #endif  // COLMAP_SRC_ESTIMATORS_RADIAL_ABSOLUTE_POSE_H_

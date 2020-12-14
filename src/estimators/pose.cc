@@ -120,7 +120,7 @@ bool EstimateRadialAbsolutePose(const AbsolutePoseEstimationOptions& options,
     }
   }
   double tz = EstimateRadialCameraForwardOffset(report.model, inlier_points2D,
-                                                inlier_points3D);
+                                                inlier_points3D, nullptr);
 
   // Extract pose parameters.
   *qvec = RotationMatrixToQuaternion(report.model.leftCols<3>());
