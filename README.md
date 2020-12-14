@@ -27,7 +27,7 @@ Example initialization images: `DSC_2637.JPG,DSC_2638.JPG,DSC_2639.JPG,DSC_2640.
 
 Getting started
 -----
-For building from source, you can follow the intructions for vanilla COLMAP, see the [documentation](https://colmap.github.io/install.html).
+For building from source, you can follow the instructions for vanilla COLMAP, see the [documentation](https://colmap.github.io/install.html).
 
 The implementation does not include an automatic way to select initialization images so these must be supplied by the user during runtime. It is also possible to provide an initial reconstruction and continue the incremental SfM from this.
 
