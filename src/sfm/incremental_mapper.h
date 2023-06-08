@@ -160,6 +160,7 @@ class IncrementalMapper {
   // automatically ignores image pairs that failed to register previously.
   bool FindInitialImagePair(const Options& options, image_t* image_id1,
                             image_t* image_id2);
+  bool FindInitialImages(const Options& options, std::vector<image_tuple_t> *image_tuples, int num_tuples);
 
   // Find best next image to register in the incremental reconstruction. The
   // images should be passed to `RegisterNextImage`. This function automatically
@@ -169,6 +170,10 @@ class IncrementalMapper {
   // Attempt to seed the reconstruction from an image pair.
   bool RegisterInitialImagePair(const Options& options, const image_t image_id1,
                                 const image_t image_id2);
+  bool RegisterInitialImages(const Options& options, 
+                                const IncrementalTriangulator::Options &tri_opt,
+                                const std::vector<image_t> &image_ids);
+
 
   // Attempt to register image to the existing model. This requires that
   // a previous call to `RegisterInitialImagePair` was successful.
@@ -285,6 +290,7 @@ class IncrementalMapper {
   // and image pair is only tried once for initialization.
   std::unordered_map<image_t, size_t> init_num_reg_trials_;
   std::unordered_set<image_pair_t> init_image_pairs_;
+  std::set<image_tuple_t> init_images_tuples_;
 
   // The number of registered images per camera. This information is used
   // to avoid duplicate refinement of camera parameters and degradation of

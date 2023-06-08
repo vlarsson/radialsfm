@@ -148,6 +148,7 @@ set(COLMAP_INTERNAL_LIBRARIES
     sqlite3
     sift_gpu
     vlfeat
+    rqt
 )
 
 set(COLMAP_EXTERNAL_LIBRARIES

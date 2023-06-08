@@ -84,6 +84,9 @@ typedef uint32_t image_t;
 // Each image pair gets a unique ID, see `Database::ImagePairToPairId`.
 typedef uint64_t image_pair_t;
 
+// Tuple of 4-images used for initialization
+typedef std::tuple<image_t, image_t, image_t, image_t> image_tuple_t;
+
 // Index per image, i.e. determines maximum number of 2D points per image.
 typedef uint32_t point2D_t;
 

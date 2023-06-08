@@ -393,6 +393,8 @@ void IncrementalMapperController::Reconstruct(
                                                   "single reconstruction, but "
                                                   "multiple are given.";
 
+  std::vector<image_tuple_t> init_image_tuples;
+
   for (int num_trials = 0; num_trials < options_->init_num_trials;
        ++num_trials) {
     BlockIfPaused();
@@ -412,52 +414,36 @@ void IncrementalMapperController::Reconstruct(
 
     mapper.BeginReconstruction(&reconstruction);
 
+    if(num_trials == 0) {
+        mapper.FindInitialImages(init_mapper_options, &init_image_tuples, options_->init_num_trials);
+    }
+
+    if(num_trials >= init_image_tuples.size()) {
+      break;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     // Register initial pair
     ////////////////////////////////////////////////////////////////////////////
-
     if (reconstruction.NumRegImages() == 0) {
-      image_t image_id1 = static_cast<image_t>(options_->init_image_id1);
-      image_t image_id2 = static_cast<image_t>(options_->init_image_id2);
-
       // Try to find good initial pair.
-      if (options_->init_image_id1 == -1 || options_->init_image_id2 == -1) {
-        PrintHeading1("Finding good initial image pair");
-        const bool find_init_success = mapper.FindInitialImagePair(
-            init_mapper_options, &image_id1, &image_id2);
-        if (!find_init_success) {
-          std::cout << "  => No good initial image pair found." << std::endl;
-          mapper.EndReconstruction(kDiscardReconstruction);
-          reconstruction_manager_->Delete(reconstruction_idx);
-          break;
-        }
-      } else {
-        if (!reconstruction.ExistsImage(image_id1) ||
-            !reconstruction.ExistsImage(image_id2)) {
-          std::cout << StringPrintf(
-                           "  => Initial image pair #%d and #%d do not exist.",
-                           image_id1, image_id2)
-                    << std::endl;
-          mapper.EndReconstruction(kDiscardReconstruction);
-          reconstruction_manager_->Delete(reconstruction_idx);
-          return;
-        }
-      }
+      PrintHeading1("Finding good initial images");
+      std::vector<image_t> init_image_ids;
+      init_image_ids.push_back(std::get<0>(init_image_tuples[num_trials]));
+      init_image_ids.push_back(std::get<1>(init_image_tuples[num_trials]));
+      init_image_ids.push_back(std::get<2>(init_image_tuples[num_trials]));
+      init_image_ids.push_back(std::get<3>(init_image_tuples[num_trials]));
 
-      PrintHeading1(StringPrintf("Initializing with image pair #%d and #%d",
-                                 image_id1, image_id2));
-      const bool reg_init_success = mapper.RegisterInitialImagePair(
-          init_mapper_options, image_id1, image_id2);
+      PrintHeading1(StringPrintf("Initializing with images #%d, #%d, #%d and #%d.",
+                                 init_image_ids[0], init_image_ids[1], init_image_ids[2], init_image_ids[3]));
+
+      const bool reg_init_success = mapper.RegisterInitialImages(
+          init_mapper_options, options_->Triangulation(), init_image_ids);
       if (!reg_init_success) {
-        std::cout << "  => Initialization failed - possible solutions:"
-                  << std::endl
-                  << "     - try to relax the initialization constraints"
-                  << std::endl
-                  << "     - manually select an initial image pair"
-                  << std::endl;
+        std::cout << "  => Initialization failed." << std::endl;
         mapper.EndReconstruction(kDiscardReconstruction);
         reconstruction_manager_->Delete(reconstruction_idx);
-        break;
+        continue;
       }
 
       AdjustGlobalBundle(*options_, &mapper);
@@ -469,17 +455,13 @@ void IncrementalMapperController::Reconstruct(
           reconstruction.NumPoints3D() == 0) {
         mapper.EndReconstruction(kDiscardReconstruction);
         reconstruction_manager_->Delete(reconstruction_idx);
-        // If both initial images are manually specified, there is no need for
-        // further initialization trials.
-        if (options_->init_image_id1 != -1 && options_->init_image_id2 != -1) {
-          break;
-        } else {
-          continue;
-        }
       }
 
       if (options_->extract_colors) {
-        ExtractColors(image_path_, image_id1, &reconstruction);
+        ExtractColors(image_path_, init_image_ids[0], &reconstruction);
+        ExtractColors(image_path_, init_image_ids[1], &reconstruction);
+        ExtractColors(image_path_, init_image_ids[2], &reconstruction);
+        ExtractColors(image_path_, init_image_ids[3], &reconstruction);
       }
     }
 

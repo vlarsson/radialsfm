@@ -47,6 +47,7 @@
 #include "mvs/meshing.h"
 #include "mvs/patch_match.h"
 #include "radial_trifocal_init/initializer.h"
+#include "radial_quadrifocal_init/initializer.h"
 #include "retrieval/visual_index.h"
 #include "ui/main_window.h"
 #include "util/opengl_utils.h"
@@ -1969,7 +1970,197 @@ int RunRadialTrifocalInitializer(int argc, char** argv) {
   const bool kDiscardReconstruction = false;
   mapper.EndReconstruction(kDiscardReconstruction);
 
-  reconstruction.WriteText(output_path);
+  reconstruction.WriteBinary(output_path);
+
+  return EXIT_SUCCESS;
+}
+
+int RunRadialQuadrifocalInitializer(int argc, char** argv) {
+  std::string output_path;
+  std::string init_images_str = "";
+  std::string image_path = "";
+  OptionManager options;
+  options.AddDatabaseOptions();
+  options.AddDefaultOption("image_path", &image_path);
+  options.AddMapperOptions();
+  options.AddRequiredOption("output_path", &output_path);
+  options.AddRequiredOption("init_images", &init_images_str);
+  options.Parse(argc, argv);
+
+  PrintHeading1("Loading database");
+  DatabaseCache database_cache;
+  {
+    Timer timer;
+    timer.Start();
+    Database database(*options.database_path);
+    const size_t min_num_matches = 25;
+    database_cache.Load(database, min_num_matches, false, {});
+    std::cout << std::endl;
+    timer.PrintMinutes();
+  }
+  std::cout << std::endl;
+
+  // Try to parse init images as integer indices
+  std::vector<image_t> init_image_ids;
+  std::vector<std::string> init_image_names;
+
+  // We were given input images, try to parse them
+  init_image_ids = CSVToVector<image_t>(init_images_str);
+  if (init_image_ids.size() == 0) {
+    // fall back to parsing them as string (names)
+    init_image_names = CSVToVector<std::string>(init_images_str);
+    if (init_image_names.size() != 4) {
+      std::cerr << "ERROR: `init_images` is incorrect format." << std::endl;
+      return EXIT_FAILURE;
+    }
+    for (int i = 0; i < 4; ++i) {
+      const Image* img = database_cache.FindImageWithName(init_image_names[i]);
+      if (img == nullptr) {
+        std::cerr << StringPrintf("ERROR: image `%s` not found in database.\n",
+                                  init_image_names[i].c_str());
+        return EXIT_FAILURE;
+      }
+      init_image_ids.push_back(img->ImageId());
+    }
+  }
+
+  if (init_image_ids.size() != 4) {
+    std::cerr << "ERROR: `init_images` is incorrect format." << std::endl;
+    return EXIT_FAILURE;
+  }
+  
+
+  // Check that all images exist in database
+  init_image_names.resize(4);
+  for (int i = 0; i < 4; ++i) {
+    if (!database_cache.ExistsImage(init_image_ids[i])) {
+      std::cerr << StringPrintf("ERROR: image id `%d` not found in database.\n",
+                                init_image_ids[i]);
+      return EXIT_FAILURE;
+    }
+    init_image_names[i] = database_cache.Image(init_image_ids[i]).Name();
+  }
+  
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Initialize camera poses
+  //////////////////////////////////////////////////////////////////////////////
+
+  PrintHeading1("Radial Quadrifocal Tensor Initializer");
+  std::cout << StringPrintf(
+      "initializing from images: %s, %s, %s, %s\n",
+      init_image_names[0].c_str(), init_image_names[1].c_str(),
+      init_image_names[2].c_str(), init_image_names[3].c_str());
+
+  // TODO initialize
+  std::vector<Eigen::Matrix3x4d> poses;
+  bool success = rqt_init::InitializeRadialQuadrifocal(database_cache, init_image_ids, &poses);
+
+  if(!success) {
+    std::cout << "Unable to initialize reconstruction.\n";
+    return EXIT_FAILURE;
+  }
+
+  
+  Reconstruction reconstruction;
+  reconstruction.SetUp(&database_cache.CorrespondenceGraph());
+
+  for(int i = 0; i < 4; ++i) {
+    const image_t image_id = init_image_ids[i];    
+    Image& image = database_cache.Image(image_id);
+    Camera &camera = database_cache.Camera(image.CameraId());
+        
+    image.SetQvec(RotationMatrixToQuaternion(poses[i].leftCols<3>()));
+    image.SetTvec(poses[i].rightCols<1>());
+
+    if (!reconstruction.ExistsCamera(image.CameraId())) {
+      reconstruction.AddCamera(camera);
+    }
+    reconstruction.AddImage(image);
+    reconstruction.RegisterImage(image_id);
+  }
+
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Triangulate points
+  //////////////////////////////////////////////////////////////////////////////
+
+  IncrementalMapper mapper(&database_cache);
+  mapper.BeginReconstruction(&reconstruction);
+
+  const auto& mapper_options = *options.mapper;
+  const auto tri_options = mapper_options.Triangulation();
+  
+  for (size_t i = 0; i < 4; ++i) {
+    const image_t image_id = init_image_ids[i];
+
+    const auto& image = reconstruction.Image(image_id);
+
+    PrintHeading1(StringPrintf("Triangulating image #%d (%d)", image_id, i));
+
+    const size_t num_existing_points3D = image.NumPoints3D();
+
+    std::cout << "  => Image sees " << num_existing_points3D << " / "
+              << image.NumObservations() << " points" << std::endl;
+
+    mapper.TriangulateImage(tri_options, image_id);
+
+    std::cout << "  => Triangulated "
+              << (image.NumPoints3D() - num_existing_points3D) << " points"
+              << std::endl;
+  }
+
+  std::cout << StringPrintf("Initial reconstruction contains %d triangulated points.\n", reconstruction.NumPoints3D());  
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Bundle adjustment
+  //////////////////////////////////////////////////////////////////////////////
+
+  auto ba_options = mapper_options.GlobalBundleAdjustment();  
+  ba_options.refine_principal_point = false;  
+
+  // Configure bundle adjustment.
+  BundleAdjustmentConfig ba_config;
+  for (const image_t image_id : init_image_ids) {
+    ba_config.AddImage(image_id);
+  }
+
+  for (int i = 0; i < mapper_options.ba_global_max_refinements; ++i) {
+    // Avoid degeneracies in bundle adjustment.
+    reconstruction.FilterObservationsWithNegativeDepth();
+
+    const size_t num_observations = reconstruction.ComputeNumObservations();
+
+    PrintHeading1("Bundle adjustment");
+    BundleAdjuster bundle_adjuster(ba_options, ba_config);
+    CHECK(bundle_adjuster.Solve(&reconstruction));
+
+    size_t num_changed_observations = 0;
+    num_changed_observations += CompleteAndMergeTracks(mapper_options, &mapper);
+    num_changed_observations += FilterPoints(mapper_options, &mapper);
+    const double changed =
+        static_cast<double>(num_changed_observations) / num_observations;
+    std::cout << StringPrintf("  => Changed observations: %.6f", changed)
+              << std::endl;
+    if (changed < mapper_options.ba_global_max_refinement_change) {
+      break;
+    }
+  }
+
+  reconstruction.Normalize();
+
+  std::cout << StringPrintf("Final reconstruction contains %d triangulated points.\n", reconstruction.NumPoints3D());
+
+
+  if(image_path != "") {
+    PrintHeading1("Extracting colors");
+    reconstruction.ExtractColorsForAllImages(image_path);
+  }
+
+  const bool kDiscardReconstruction = false;
+  mapper.EndReconstruction(kDiscardReconstruction);
+
+  reconstruction.WriteBinary(output_path);
 
   return EXIT_SUCCESS;
 }
@@ -2354,6 +2545,8 @@ int main(int argc, char** argv) {
   commands.emplace_back("rig_bundle_adjuster", &RunRigBundleAdjuster);
   commands.emplace_back("radial_trifocal_initializer",
                         &RunRadialTrifocalInitializer);
+  commands.emplace_back("radial_quadrifocal_initializer",
+                        &RunRadialQuadrifocalInitializer);
   commands.emplace_back("sequential_matcher", &RunSequentialMatcher);
   commands.emplace_back("spatial_matcher", &RunSpatialMatcher);
   commands.emplace_back("stereo_fusion", &RunStereoFuser);

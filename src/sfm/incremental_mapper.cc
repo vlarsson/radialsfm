@@ -30,6 +30,7 @@
 // Author: Johannes L. Schoenberger (jsch-at-demuc-dot-de)
 
 #include "sfm/incremental_mapper.h"
+#include "radial_quadrifocal_init/initializer.h"
 
 #include <array>
 #include <fstream>
@@ -199,6 +200,40 @@ bool IncrementalMapper::FindInitialImagePair(const Options& options,
   return false;
 }
 
+bool IncrementalMapper::FindInitialImages(const Options& options,
+                                          std::vector<image_tuple_t> *init_tuples,
+                                          int num_tuples) {
+  CHECK(options.Check());
+
+  const std::vector<image_t> image_ids1 = FindFirstInitialImage(options);
+
+  init_tuples->clear();
+  for(int i = 0; i < image_ids1.size(); ++i) {
+    const std::vector<image_t> adjacent_images =
+        FindSecondInitialImage(options, image_ids1[i]);
+
+    if(adjacent_images.size() < 3) {
+      continue;
+    }
+
+    image_tuple_t tuple = std::make_tuple(image_ids1[i], adjacent_images[0], adjacent_images[1], adjacent_images[2]);
+
+    // Try every tuple only once.
+    if (init_images_tuples_.count(tuple) > 0) {
+      continue;
+    }
+    init_images_tuples_.insert(tuple);
+
+    init_tuples->push_back(tuple);
+
+    if(init_tuples->size() == num_tuples) {
+      return true;
+    }
+  }
+  
+  return init_tuples->size() > 0;
+}
+
 std::vector<image_t> IncrementalMapper::FindNextImages(const Options& options) {
   CHECK_NOTNULL(reconstruction_);
   CHECK(options.Check());
@@ -339,6 +374,52 @@ bool IncrementalMapper::RegisterInitialImagePair(const Options& options,
   }
 
   return true;
+}
+
+bool IncrementalMapper::RegisterInitialImages(const Options& options,
+                                                 const IncrementalTriangulator::Options &tri_opt,
+                                                 const std::vector<image_t> &image_ids) {
+  CHECK_NOTNULL(reconstruction_);
+  CHECK_EQ(reconstruction_->NumRegImages(), 0);
+  CHECK_EQ(image_ids.size(), 4);
+  CHECK(options.Check());
+
+  for(int i = 0; i < 4; ++i) {
+    init_num_reg_trials_[image_ids[i]] += 1;
+    num_reg_trials_[image_ids[i]] += 1;
+  }
+
+  //const image_pair_t pair_id =
+  //    Database::ImagePairToPairId(image_id1, image_id2);
+  //init_image_pairs_.insert(pair_id);
+
+  std::vector<Eigen::Matrix3x4d> poses;
+  bool success = rqt_init::InitializeRadialQuadrifocal(*database_cache_, image_ids, &poses);
+
+  if(!success) {
+    return false;
+  }
+
+  for(int i = 0; i < 4; ++i) {
+    Image &image = reconstruction_->Image(image_ids[i]);
+    image.Qvec() = RotationMatrixToQuaternion(poses[i].block<3,3>(0,0));
+    image.Tvec() = poses[i].col(3);
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Update Reconstruction
+  //////////////////////////////////////////////////////////////////////////////
+  for(int i = 0; i < 4; ++i) {
+    reconstruction_->RegisterImage(image_ids[i]);
+    RegisterImageEvent(image_ids[i]);
+  }
+
+  // Triangulate 3D points
+  size_t triangulated_points = 0;
+  for(int i = 0; i < 4; ++i) {
+    triangulated_points += triangulator_->TriangulateImage(tri_opt, image_ids[i]);
+  }
+  return triangulated_points > options.init_min_num_inliers;
 }
 
 bool IncrementalMapper::RegisterNextImage(const Options& options,
@@ -844,7 +925,6 @@ std::vector<image_t> IncrementalMapper::FindFirstInitialImage(
     image_info.num_correspondences = image.second.NumCorrespondences();
     image_infos.push_back(image_info);
   }
-
   // Sort images such that images with a prior focal length and more
   // correspondences are preferred, i.e. they appear in the front of the list.
   std::sort(

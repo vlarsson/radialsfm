@@ -2,3 +2,6 @@
 	path = doc/_build/html
 	url = https://github.com/colmap/colmap.github.io.git
 	ignore = all
+[submodule "lib/radial_quadrifocal"]
+	path = lib/radial_quadrifocal
+	url = https://github.com/vlarsson/radial_quadrifocal.git

@@ -201,7 +201,6 @@ ImageReader::Status ImageReader::Next(Camera* camera, Image* image,
                          std::max(bitmap->Width(), bitmap->Height());
           prev_camera_.SetPriorFocalLength(false);
         }
-
         prev_camera_.InitializeWithId(prev_camera_.ModelId(), focal_length,
                                       bitmap->Width(), bitmap->Height());
       }

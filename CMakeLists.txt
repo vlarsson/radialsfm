@@ -315,6 +315,7 @@ set(COLMAP_INTERNAL_LIBRARIES
     sqlite3
     sift_gpu
     vlfeat
+    rqt
 )
 
 include_directories(
@@ -341,6 +342,8 @@ COLMAP_ADD_SOURCE_DIR(lib/PoissonRecon LIB_POISSON_RECON_SRCS *.h *.cpp *.inl)
 COLMAP_ADD_SOURCE_DIR(lib/SiftGPU LIB_SIFT_GPU_SRCS *.h *.cpp *.cu)
 COLMAP_ADD_SOURCE_DIR(lib/SQLite LIB_SQLITE_SRCS *.h *.c)
 COLMAP_ADD_SOURCE_DIR(lib/VLFeat LIB_VLFEAT_SRCS *.h *.c *.tc)
+COLMAP_ADD_SOURCE_DIR(lib/radial_quadrifocal/rqt LIB_RQT_SRCS *.h *.c *.tc)
+
 
 COLMAP_ADD_SOURCE_DIR(src/base BASE_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/controllers CONTROLLERS_SRCS *.h *.cc)
@@ -350,6 +353,7 @@ COLMAP_ADD_SOURCE_DIR(src/feature FEATURE_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/mvs MVS_SRCS *.h *.cc *.cu)
 COLMAP_ADD_SOURCE_DIR(src/optim OPTIM_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/radial_trifocal_init RADIAL_TRIFOCAL_INIT_SRCS *.h *.cc)
+COLMAP_ADD_SOURCE_DIR(src/radial_quadrifocal_init RADIAL_QUADRIFOCAL_INIT_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/retrieval RETRIEVAL_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/sfm SFM_SRCS *.h *.cc)
 COLMAP_ADD_SOURCE_DIR(src/tools TOOLS_SRCS *.h *.cc)
@@ -369,6 +373,7 @@ add_library(
     ${LIB_SIFT_GPU_SRCS}
     ${LIB_SQLITE_SRCS}
     ${LIB_VLFEAT_SRCS}
+    ${LIB_RQT_SRCS}
     ${BASE_SRCS}
     ${CONTROLLERS_SRCS}
     ${ESTIMATORS_SRCS}
@@ -377,6 +382,7 @@ add_library(
     ${MVS_SRCS}
     ${OPTIM_SRCS}
     ${RADIAL_TRIFOCAL_INIT_SRCS}
+    ${RADIAL_QUADRIFOCAL_INIT_SRCS}
     ${RETRIEVAL_SRCS}
     ${SFM_SRCS}
     ${TOOLS_SRCS}
