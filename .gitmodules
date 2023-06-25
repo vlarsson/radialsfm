@@ -4,4 +4,4 @@
 	ignore = all
 [submodule "lib/radial_quadrifocal"]
 	path = lib/radial_quadrifocal
-	url = https://github.com/vlarsson/radial_quadrifocal.git
+	url = https://github.com/timduff35/radial_quadrifocal
